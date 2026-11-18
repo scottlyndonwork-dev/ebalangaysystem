@@ -1,0 +1,13 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "tasks": {
+    "db:generate": { "cache": false },
+    "build": { "dependsOn": ["^build", "db:generate"], "outputs": ["dist/**"] },
+    "typecheck": { "dependsOn": ["^build", "db:generate"] },
+    "lint": {},
+    "test": {
+      "dependsOn": ["^build", "db:generate"],
+      "env": ["DATABASE_URL", "TEST_DATABASE_URL", "REDIS_URL"]
+    }
+  }
+}
