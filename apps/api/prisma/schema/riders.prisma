@@ -1,0 +1,439 @@
+model Rider {
+  id                 String                                 @id @default(uuid(7)) @db.Uuid
+  userId             String                                 @unique @map("user_id") @db.Uuid
+  status             RiderStatus                            @default(offline)
+  verificationStatus RiderVerificationStatus                @default(pending) @map("verification_status")
+  vehicleType        VehicleType                            @map("vehicle_type")
+  plateNumber        String?                                @map("plate_number")
+  licenseNumberEnc   String?                                @map("license_number_enc")
+  /// Last known position; live pings go to Redis GEO, this is a periodic snapshot.
+  lastLat            Float?                                 @map("last_lat")
+  lastLng            Float?                                 @map("last_lng")
+  lastLocation       Unsupported("geography(Point, 4326)")? @map("last_location")
+  lastLocationAt     DateTime?                              @map("last_location_at") @db.Timestamptz(3)
+  ratingAverage      Decimal                                @default(0) @map("rating_average") @db.Decimal(3, 2)
+  ratingCount        Int                                    @default(0) @map("rating_count")
+  /// Max unremitted COD cash before the rider is blocked from COD jobs.
+  codLimitCentavos   BigInt                                 @default(500000) @map("cod_limit_centavos")
+  codBalanceCentavos BigInt                                 @default(0) @map("cod_balance_centavos")
+  version            Int                                    @default(0)
+  createdAt          DateTime                               @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime                               @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  user              User                @relation(fields: [userId], references: [id], onDelete: Restrict)
+  documents         RiderDocument[]
+  zones             RiderZone[]
+  shifts            RiderShift[]
+  orders            Order[]
+  deliveries        Delivery[]
+  offers            DeliveryOffer[]
+  codCollections    CodCollection[]
+  codRemittances    CodRemittance[]
+  incidents         RiderIncident[]
+  safetyChecks      SafetyCheck[]
+  insuranceSessions InsuranceSession[]
+  insuranceClaims   InsuranceClaim[]
+  challengeProgress ChallengeProgress[]
+  badges            RiderBadge[]
+  reviews           Review[]
+  payouts           Payout[]
+  settlements       Settlement[]
+
+  @@index([status])
+  @@index([verificationStatus])
+  @@index([lastLocation], type: Gist)
+  @@map("riders")
+}
+
+model RiderDocument {
+  id           String         @id @default(uuid(7)) @db.Uuid
+  riderId      String         @map("rider_id") @db.Uuid
+  /// license | or_cr | nbi_clearance | valid_id | selfie
+  type         String
+  /// Private, encrypted at rest (RA 10173).
+  fileKey      String         @map("file_key")
+  status       DocumentStatus @default(pending)
+  notes        String?
+  reviewedById String?        @map("reviewed_by_id") @db.Uuid
+  reviewedAt   DateTime?      @map("reviewed_at") @db.Timestamptz(3)
+  expiresAt    DateTime?      @map("expires_at") @db.Timestamptz(3)
+  createdAt    DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
+  rider        Rider          @relation(fields: [riderId], references: [id], onDelete: Cascade)
+
+  @@index([riderId])
+  @@index([status])
+  @@map("rider_documents")
+}
+
+model RiderZone {
+  riderId   String  @map("rider_id") @db.Uuid
+  zoneId    String  @map("zone_id") @db.Uuid
+  isPrimary Boolean @default(false) @map("is_primary")
+  rider     Rider   @relation(fields: [riderId], references: [id], onDelete: Cascade)
+  zone      Zone    @relation(fields: [zoneId], references: [id], onDelete: Cascade)
+
+  @@id([riderId, zoneId])
+  @@index([zoneId])
+  @@map("rider_zones")
+}
+
+model RiderShift {
+  id               String        @id @default(uuid(7)) @db.Uuid
+  riderId          String        @map("rider_id") @db.Uuid
+  zoneId           String?       @map("zone_id") @db.Uuid
+  startedAt        DateTime      @default(now()) @map("started_at") @db.Timestamptz(3)
+  endedAt          DateTime?     @map("ended_at") @db.Timestamptz(3)
+  onlineSeconds    Int           @default(0) @map("online_seconds")
+  deliveryCount    Int           @default(0) @map("delivery_count")
+  earningsCentavos BigInt        @default(0) @map("earnings_centavos")
+  rider            Rider         @relation(fields: [riderId], references: [id], onDelete: Cascade)
+  zone             Zone?         @relation(fields: [zoneId], references: [id], onDelete: SetNull)
+  safetyChecks     SafetyCheck[]
+
+  @@index([riderId, startedAt])
+  @@index([zoneId])
+  @@map("rider_shifts")
+}
+
+/// One rider job; may batch several orders as ordered legs.
+model Delivery {
+  id                String             @id @default(uuid(7)) @db.Uuid
+  riderId           String?            @map("rider_id") @db.Uuid
+  zoneId            String?            @map("zone_id") @db.Uuid
+  status            DeliveryStatus     @default(searching)
+  distanceMeters    Int                @default(0) @map("distance_meters")
+  riderFeeCentavos  BigInt             @default(0) @map("rider_fee_centavos")
+  version           Int                @default(0)
+  assignedAt        DateTime?          @map("assigned_at") @db.Timestamptz(3)
+  completedAt       DateTime?          @map("completed_at") @db.Timestamptz(3)
+  createdAt         DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime           @updatedAt @map("updated_at") @db.Timestamptz(3)
+  rider             Rider?             @relation(fields: [riderId], references: [id], onDelete: SetNull)
+  zone              Zone?              @relation(fields: [zoneId], references: [id], onDelete: SetNull)
+  legs              DeliveryLeg[]
+  offers            DeliveryOffer[]
+  insuranceSessions InsuranceSession[]
+
+  @@index([riderId, status])
+  @@index([status, createdAt])
+  @@index([zoneId])
+  @@map("deliveries")
+}
+
+model DeliveryLeg {
+  id          String                                 @id @default(uuid(7)) @db.Uuid
+  deliveryId  String                                 @map("delivery_id") @db.Uuid
+  orderId     String                                 @map("order_id") @db.Uuid
+  sequence    Int
+  /// pickup | dropoff
+  kind        String
+  lat         Float
+  lng         Float
+  location    Unsupported("geography(Point, 4326)")?
+  /// pending | arrived | completed | skipped
+  status      String                                 @default("pending")
+  arrivedAt   DateTime?                              @map("arrived_at") @db.Timestamptz(3)
+  completedAt DateTime?                              @map("completed_at") @db.Timestamptz(3)
+  delivery    Delivery                               @relation(fields: [deliveryId], references: [id], onDelete: Cascade)
+  order       Order                                  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  proofs      DeliveryProof[]
+
+  @@unique([deliveryId, sequence])
+  @@index([orderId])
+  @@map("delivery_legs")
+}
+
+model DeliveryOffer {
+  id          String    @id @default(uuid(7)) @db.Uuid
+  deliveryId  String    @map("delivery_id") @db.Uuid
+  riderId     String    @map("rider_id") @db.Uuid
+  /// offered | accepted | declined | expired
+  status      String    @default("offered")
+  expiresAt   DateTime  @map("expires_at") @db.Timestamptz(3)
+  respondedAt DateTime? @map("responded_at") @db.Timestamptz(3)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  delivery    Delivery  @relation(fields: [deliveryId], references: [id], onDelete: Cascade)
+  rider       Rider     @relation(fields: [riderId], references: [id], onDelete: Cascade)
+
+  @@index([deliveryId])
+  @@index([riderId, status])
+  @@map("delivery_offers")
+}
+
+model DeliveryProof {
+  id        String      @id @default(uuid(7)) @db.Uuid
+  legId     String      @map("leg_id") @db.Uuid
+  /// photo | signature | pin
+  type      String
+  fileKey   String?     @map("file_key")
+  lat       Float?
+  lng       Float?
+  createdAt DateTime    @default(now()) @map("created_at") @db.Timestamptz(3)
+  leg       DeliveryLeg @relation(fields: [legId], references: [id], onDelete: Cascade)
+
+  @@index([legId])
+  @@map("delivery_proofs")
+}
+
+model CodCollection {
+  id             String         @id @default(uuid(7)) @db.Uuid
+  orderId        String         @unique @map("order_id") @db.Uuid
+  riderId        String         @map("rider_id") @db.Uuid
+  amountCentavos BigInt         @map("amount_centavos")
+  remittanceId   String?        @map("remittance_id") @db.Uuid
+  collectedAt    DateTime       @default(now()) @map("collected_at") @db.Timestamptz(3)
+  order          Order          @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  rider          Rider          @relation(fields: [riderId], references: [id], onDelete: Restrict)
+  remittance     CodRemittance? @relation(fields: [remittanceId], references: [id], onDelete: SetNull)
+
+  @@index([riderId, collectedAt])
+  @@index([remittanceId])
+  @@map("cod_collections")
+}
+
+model CodRemittance {
+  id             String          @id @default(uuid(7)) @db.Uuid
+  riderId        String          @map("rider_id") @db.Uuid
+  amountCentavos BigInt          @map("amount_centavos")
+  /// gcash | maya | cash_hub | wallet_offset
+  method         String
+  /// pending | confirmed | rejected
+  status         String          @default("pending")
+  providerRef    String?         @map("provider_ref")
+  confirmedById  String?         @map("confirmed_by_id") @db.Uuid
+  confirmedAt    DateTime?       @map("confirmed_at") @db.Timestamptz(3)
+  createdAt      DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
+  rider          Rider           @relation(fields: [riderId], references: [id], onDelete: Restrict)
+  collections    CodCollection[]
+
+  @@index([riderId, createdAt])
+  @@index([status])
+  @@map("cod_remittances")
+}
+
+model RiderIncident {
+  id          String           @id @default(uuid(7)) @db.Uuid
+  riderId     String           @map("rider_id") @db.Uuid
+  orderId     String?          @map("order_id") @db.Uuid
+  /// accident | harassment | vehicle | customer_unreachable | sos | other
+  type        String
+  /// low | medium | high | critical
+  severity    String           @default("medium")
+  description String
+  lat         Float?
+  lng         Float?
+  /// open | investigating | resolved
+  status      String           @default("open")
+  resolvedAt  DateTime?        @map("resolved_at") @db.Timestamptz(3)
+  createdAt   DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  rider       Rider            @relation(fields: [riderId], references: [id], onDelete: Cascade)
+  order       Order?           @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  claims      InsuranceClaim[]
+
+  @@index([riderId, createdAt])
+  @@index([orderId])
+  @@index([status])
+  @@map("rider_incidents")
+}
+
+model SafetyCheck {
+  id           String      @id @default(uuid(7)) @db.Uuid
+  riderId      String      @map("rider_id") @db.Uuid
+  shiftId      String?     @map("shift_id") @db.Uuid
+  /// helmet_selfie | vehicle_check
+  type         String
+  photoFileKey String?     @map("photo_file_key")
+  passed       Boolean
+  createdAt    DateTime    @default(now()) @map("created_at") @db.Timestamptz(3)
+  rider        Rider       @relation(fields: [riderId], references: [id], onDelete: Cascade)
+  shift        RiderShift? @relation(fields: [shiftId], references: [id], onDelete: SetNull)
+
+  @@index([riderId, createdAt])
+  @@index([shiftId])
+  @@map("safety_checks")
+}
+
+/// Per-trip micro-insurance coverage window.
+model InsuranceSession {
+  id              String           @id @default(uuid(7)) @db.Uuid
+  riderId         String           @map("rider_id") @db.Uuid
+  deliveryId      String?          @map("delivery_id") @db.Uuid
+  provider        String
+  policyRef       String?          @map("policy_ref")
+  premiumCentavos BigInt           @default(0) @map("premium_centavos")
+  startedAt       DateTime         @default(now()) @map("started_at") @db.Timestamptz(3)
+  endedAt         DateTime?        @map("ended_at") @db.Timestamptz(3)
+  rider           Rider            @relation(fields: [riderId], references: [id], onDelete: Cascade)
+  delivery        Delivery?        @relation(fields: [deliveryId], references: [id], onDelete: SetNull)
+  claims          InsuranceClaim[]
+
+  @@index([riderId, startedAt])
+  @@index([deliveryId])
+  @@map("insurance_sessions")
+}
+
+model InsuranceClaim {
+  id             String           @id @default(uuid(7)) @db.Uuid
+  sessionId      String           @map("session_id") @db.Uuid
+  riderId        String           @map("rider_id") @db.Uuid
+  incidentId     String?          @map("incident_id") @db.Uuid
+  amountCentavos BigInt           @map("amount_centavos")
+  /// filed | under_review | approved | rejected | paid
+  status         String           @default("filed")
+  createdAt      DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
+  session        InsuranceSession @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+  rider          Rider            @relation(fields: [riderId], references: [id], onDelete: Cascade)
+  incident       RiderIncident?   @relation(fields: [incidentId], references: [id], onDelete: SetNull)
+
+  @@index([sessionId])
+  @@index([riderId])
+  @@index([incidentId])
+  @@index([status])
+  @@map("insurance_claims")
+}
+
+model Challenge {
+  id             String              @id @default(uuid(7)) @db.Uuid
+  title          String
+  description    String?
+  zoneId         String?             @map("zone_id") @db.Uuid
+  /// deliveries | online_hours | rating | peak_deliveries
+  metric         String
+  target         Int
+  rewardCentavos BigInt              @map("reward_centavos")
+  startsAt       DateTime            @map("starts_at") @db.Timestamptz(3)
+  endsAt         DateTime            @map("ends_at") @db.Timestamptz(3)
+  isActive       Boolean             @default(true) @map("is_active")
+  zone           Zone?               @relation(fields: [zoneId], references: [id], onDelete: SetNull)
+  progress       ChallengeProgress[]
+
+  @@index([zoneId])
+  @@index([isActive, startsAt, endsAt])
+  @@map("challenges")
+}
+
+model ChallengeProgress {
+  challengeId String    @map("challenge_id") @db.Uuid
+  riderId     String    @map("rider_id") @db.Uuid
+  progress    Int       @default(0)
+  completedAt DateTime? @map("completed_at") @db.Timestamptz(3)
+  rewardedAt  DateTime? @map("rewarded_at") @db.Timestamptz(3)
+  challenge   Challenge @relation(fields: [challengeId], references: [id], onDelete: Cascade)
+  rider       Rider     @relation(fields: [riderId], references: [id], onDelete: Cascade)
+
+  @@id([challengeId, riderId])
+  @@index([riderId])
+  @@map("challenge_progress")
+}
+
+model Badge {
+  id          String       @id @default(uuid(7)) @db.Uuid
+  slug        String       @unique
+  name        String
+  description String?
+  iconUrl     String?      @map("icon_url")
+  riders      RiderBadge[]
+
+  @@map("badges")
+}
+
+model RiderBadge {
+  riderId   String   @map("rider_id") @db.Uuid
+  badgeId   String   @map("badge_id") @db.Uuid
+  awardedAt DateTime @default(now()) @map("awarded_at") @db.Timestamptz(3)
+  rider     Rider    @relation(fields: [riderId], references: [id], onDelete: Cascade)
+  badge     Badge    @relation(fields: [badgeId], references: [id], onDelete: Cascade)
+
+  @@id([riderId, badgeId])
+  @@index([badgeId])
+  @@map("rider_badges")
+}
+
+model Zone {
+  id                      String                                   @id @default(uuid(7)) @db.Uuid
+  name                    String
+  city                    String
+  province                String
+  /// GeoJSON Polygon (source of truth for edits); `polygon` is trigger-maintained.
+  boundaryGeojson         Json                                     @map("boundary_geojson")
+  polygon                 Unsupported("geography(Polygon, 4326)")?
+  isActive                Boolean                                  @default(true) @map("is_active")
+  baseDeliveryFeeCentavos BigInt                                   @map("base_delivery_fee_centavos")
+  perKmFeeCentavos        BigInt                                   @map("per_km_fee_centavos")
+  version                 Int                                      @default(0)
+  createdAt               DateTime                                 @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt               DateTime                                 @updatedAt @map("updated_at") @db.Timestamptz(3)
+  subZones                SubZone[]
+  feeTiers                DeliveryFeeTier[]
+  surgeRules              SurgeRule[]
+  surgeEvents             SurgeEvent[]
+  merchants               Merchant[]
+  riderZones              RiderZone[]
+  shifts                  RiderShift[]
+  deliveries              Delivery[]
+  challenges              Challenge[]
+
+  @@unique([city, name])
+  @@index([isActive])
+  @@index([polygon], type: Gist)
+  @@map("zones")
+}
+
+model SubZone {
+  id              String                                   @id @default(uuid(7)) @db.Uuid
+  zoneId          String                                   @map("zone_id") @db.Uuid
+  name            String
+  boundaryGeojson Json                                     @map("boundary_geojson")
+  polygon         Unsupported("geography(Polygon, 4326)")?
+  isActive        Boolean                                  @default(true) @map("is_active")
+  zone            Zone                                     @relation(fields: [zoneId], references: [id], onDelete: Cascade)
+
+  @@index([zoneId])
+  @@index([polygon], type: Gist)
+  @@map("sub_zones")
+}
+
+model DeliveryFeeTier {
+  id           String @id @default(uuid(7)) @db.Uuid
+  zoneId       String @map("zone_id") @db.Uuid
+  minDistanceM Int    @map("min_distance_m")
+  maxDistanceM Int    @map("max_distance_m")
+  feeCentavos  BigInt @map("fee_centavos")
+  zone         Zone   @relation(fields: [zoneId], references: [id], onDelete: Cascade)
+
+  @@index([zoneId, minDistanceM])
+  @@map("delivery_fee_tiers")
+}
+
+model SurgeRule {
+  id            String       @id @default(uuid(7)) @db.Uuid
+  zoneId        String       @map("zone_id") @db.Uuid
+  name          String
+  multiplierBps Int          @map("multiplier_bps")
+  /// manual | demand_ratio | weather | schedule
+  trigger       String
+  conditions    Json         @default("{}")
+  isActive      Boolean      @default(true) @map("is_active")
+  zone          Zone         @relation(fields: [zoneId], references: [id], onDelete: Cascade)
+  events        SurgeEvent[]
+
+  @@index([zoneId, isActive])
+  @@map("surge_rules")
+}
+
+model SurgeEvent {
+  id            String     @id @default(uuid(7)) @db.Uuid
+  zoneId        String     @map("zone_id") @db.Uuid
+  ruleId        String?    @map("rule_id") @db.Uuid
+  multiplierBps Int        @map("multiplier_bps")
+  reason        String?
+  startsAt      DateTime   @map("starts_at") @db.Timestamptz(3)
+  endsAt        DateTime?  @map("ends_at") @db.Timestamptz(3)
+  zone          Zone       @relation(fields: [zoneId], references: [id], onDelete: Cascade)
+  rule          SurgeRule? @relation(fields: [ruleId], references: [id], onDelete: SetNull)
+
+  @@index([zoneId, startsAt])
+  @@index([ruleId])
+  @@map("surge_events")
+}

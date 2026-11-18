@@ -1,0 +1,259 @@
+model Category {
+  id         String    @id @default(uuid(7)) @db.Uuid
+  merchantId String    @map("merchant_id") @db.Uuid
+  name       String
+  sortOrder  Int       @default(0) @map("sort_order")
+  isActive   Boolean   @default(true) @map("is_active")
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  merchant   Merchant  @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  products   Product[]
+
+  @@index([merchantId, sortOrder])
+  @@map("categories")
+}
+
+model Product {
+  id                     String    @id @default(uuid(7)) @db.Uuid
+  merchantId             String    @map("merchant_id") @db.Uuid
+  categoryId             String?   @map("category_id") @db.Uuid
+  name                   String
+  description            String?
+  basePriceCentavos      BigInt    @map("base_price_centavos")
+  compareAtPriceCentavos BigInt?   @map("compare_at_price_centavos")
+  sku                    String?
+  isAvailable            Boolean   @default(true) @map("is_available")
+  trackInventory         Boolean   @default(false) @map("track_inventory")
+  sortOrder              Int       @default(0) @map("sort_order")
+  version                Int       @default(0)
+  deletedAt              DateTime? @map("deleted_at") @db.Timestamptz(3)
+  createdAt              DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt              DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  merchant        Merchant            @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  category        Category?           @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  images          ProductImage[]
+  variants        Variant[]
+  modifierGroups  ModifierGroup[]
+  wholesalePrices WholesalePrice[]
+  inventoryLevels InventoryLevel[]
+  inventoryMoves  InventoryMovement[]
+  cartItems       CartItem[]
+  orderItems      OrderItem[]
+  stories         Story[]
+
+  @@index([merchantId, isAvailable])
+  @@index([categoryId])
+  @@index([merchantId, sku])
+  @@index([name(ops: raw("gin_trgm_ops"))], type: Gin, map: "products_name_trgm_idx")
+  @@map("products")
+}
+
+model ProductImage {
+  id        String  @id @default(uuid(7)) @db.Uuid
+  productId String  @map("product_id") @db.Uuid
+  url       String
+  fileKey   String? @map("file_key")
+  sortOrder Int     @default(0) @map("sort_order")
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId, sortOrder])
+  @@map("product_images")
+}
+
+model Variant {
+  id              String              @id @default(uuid(7)) @db.Uuid
+  productId       String              @map("product_id") @db.Uuid
+  name            String
+  priceCentavos   BigInt              @map("price_centavos")
+  sku             String?
+  isAvailable     Boolean             @default(true) @map("is_available")
+  sortOrder       Int                 @default(0) @map("sort_order")
+  product         Product             @relation(fields: [productId], references: [id], onDelete: Cascade)
+  wholesalePrices WholesalePrice[]
+  inventoryLevels InventoryLevel[]
+  inventoryMoves  InventoryMovement[]
+  cartItems       CartItem[]
+  orderItems      OrderItem[]
+
+  @@index([productId])
+  @@map("variants")
+}
+
+model ModifierGroup {
+  id        String     @id @default(uuid(7)) @db.Uuid
+  productId String     @map("product_id") @db.Uuid
+  name      String
+  minSelect Int        @default(0) @map("min_select")
+  maxSelect Int        @default(1) @map("max_select")
+  sortOrder Int        @default(0) @map("sort_order")
+  product   Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
+  modifiers Modifier[]
+
+  @@index([productId])
+  @@map("modifier_groups")
+}
+
+model Modifier {
+  id                 String        @id @default(uuid(7)) @db.Uuid
+  groupId            String        @map("group_id") @db.Uuid
+  name               String
+  /// May be negative.
+  priceDeltaCentavos BigInt        @default(0) @map("price_delta_centavos")
+  isAvailable        Boolean       @default(true) @map("is_available")
+  sortOrder          Int           @default(0) @map("sort_order")
+  group              ModifierGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@index([groupId])
+  @@map("modifiers")
+}
+
+/// Time-boxed menus (e.g. breakfast 06:00-10:30). Empty id arrays = whole menu.
+model MenuSchedule {
+  id          String   @id @default(uuid(7)) @db.Uuid
+  merchantId  String   @map("merchant_id") @db.Uuid
+  name        String
+  dayOfWeek   Int      @map("day_of_week") @db.SmallInt
+  startTime   String   @map("start_time")
+  endTime     String   @map("end_time")
+  productIds  String[] @map("product_ids") @db.Uuid
+  categoryIds String[] @map("category_ids") @db.Uuid
+  isActive    Boolean  @default(true) @map("is_active")
+  merchant    Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+
+  @@index([merchantId, dayOfWeek])
+  @@map("menu_schedules")
+}
+
+model WholesalePrice {
+  id                String   @id @default(uuid(7)) @db.Uuid
+  productId         String   @map("product_id") @db.Uuid
+  variantId         String?  @map("variant_id") @db.Uuid
+  minQty            Int      @map("min_qty")
+  unitPriceCentavos BigInt   @map("unit_price_centavos")
+  product           Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  variant           Variant? @relation(fields: [variantId], references: [id], onDelete: Cascade)
+
+  @@index([productId, minQty])
+  @@index([variantId])
+  @@map("wholesale_prices")
+}
+
+model InventoryLevel {
+  id                String   @id @default(uuid(7)) @db.Uuid
+  merchantId        String   @map("merchant_id") @db.Uuid
+  productId         String   @map("product_id") @db.Uuid
+  variantId         String?  @map("variant_id") @db.Uuid
+  quantity          Int      @default(0)
+  lowStockThreshold Int      @default(5) @map("low_stock_threshold")
+  updatedAt         DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  merchant          Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  product           Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  variant           Variant? @relation(fields: [variantId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, variantId])
+  @@index([merchantId])
+  @@index([variantId])
+  @@map("inventory_levels")
+}
+
+model InventoryMovement {
+  id          String   @id @default(uuid(7)) @db.Uuid
+  merchantId  String   @map("merchant_id") @db.Uuid
+  productId   String   @map("product_id") @db.Uuid
+  variantId   String?  @map("variant_id") @db.Uuid
+  delta       Int
+  /// sale | restock | adjustment | waste | return | cancel
+  reason      String
+  orderId     String?  @map("order_id") @db.Uuid
+  actorUserId String?  @map("actor_user_id") @db.Uuid
+  note        String?
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  merchant    Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  product     Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  variant     Variant? @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  order       Order?   @relation(fields: [orderId], references: [id], onDelete: SetNull)
+
+  @@index([merchantId, createdAt])
+  @@index([productId])
+  @@index([variantId])
+  @@index([orderId])
+  @@map("inventory_movements")
+}
+
+model Cart {
+  id          String     @id @default(uuid(7)) @db.Uuid
+  userId      String     @map("user_id") @db.Uuid
+  merchantId  String     @map("merchant_id") @db.Uuid
+  voucherCode String?    @map("voucher_code")
+  groupCartId String?    @map("group_cart_id") @db.Uuid
+  createdAt   DateTime   @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime   @updatedAt @map("updated_at") @db.Timestamptz(3)
+  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  merchant    Merchant   @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  groupCart   GroupCart? @relation(fields: [groupCartId], references: [id], onDelete: SetNull)
+  items       CartItem[]
+
+  @@unique([userId, merchantId])
+  @@index([merchantId])
+  @@index([groupCartId])
+  @@map("carts")
+}
+
+model CartItem {
+  id          String           @id @default(uuid(7)) @db.Uuid
+  cartId      String           @map("cart_id") @db.Uuid
+  productId   String           @map("product_id") @db.Uuid
+  variantId   String?          @map("variant_id") @db.Uuid
+  memberId    String?          @map("member_id") @db.Uuid
+  quantity    Int
+  modifierIds String[]         @map("modifier_ids") @db.Uuid
+  notes       String?
+  createdAt   DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  cart        Cart             @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  product     Product          @relation(fields: [productId], references: [id], onDelete: Cascade)
+  variant     Variant?         @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  member      GroupCartMember? @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@index([cartId])
+  @@index([productId])
+  @@index([variantId])
+  @@index([memberId])
+  @@map("cart_items")
+}
+
+model GroupCart {
+  id         String            @id @default(uuid(7)) @db.Uuid
+  hostUserId String            @map("host_user_id") @db.Uuid
+  merchantId String            @map("merchant_id") @db.Uuid
+  code       String            @unique
+  /// open | locked | ordered | cancelled
+  status     String            @default("open")
+  deadlineAt DateTime?         @map("deadline_at") @db.Timestamptz(3)
+  createdAt  DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+  host       User              @relation(fields: [hostUserId], references: [id], onDelete: Cascade)
+  merchant   Merchant          @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  members    GroupCartMember[]
+  carts      Cart[]
+  orders     Order[]
+
+  @@index([hostUserId])
+  @@index([merchantId])
+  @@index([status])
+  @@map("group_carts")
+}
+
+model GroupCartMember {
+  id          String     @id @default(uuid(7)) @db.Uuid
+  groupCartId String     @map("group_cart_id") @db.Uuid
+  userId      String     @map("user_id") @db.Uuid
+  displayName String     @map("display_name")
+  isReady     Boolean    @default(false) @map("is_ready")
+  joinedAt    DateTime   @default(now()) @map("joined_at") @db.Timestamptz(3)
+  groupCart   GroupCart  @relation(fields: [groupCartId], references: [id], onDelete: Cascade)
+  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items       CartItem[]
+
+  @@unique([groupCartId, userId])
+  @@index([userId])
+  @@map("group_cart_members")
+}

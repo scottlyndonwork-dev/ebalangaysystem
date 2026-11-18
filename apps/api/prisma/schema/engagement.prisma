@@ -1,0 +1,131 @@
+model Review {
+  id         String       @id @default(uuid(7)) @db.Uuid
+  orderId    String       @map("order_id") @db.Uuid
+  authorId   String       @map("author_id") @db.Uuid
+  target     ReviewTarget
+  merchantId String?      @map("merchant_id") @db.Uuid
+  riderId    String?      @map("rider_id") @db.Uuid
+  rating     Int          @db.SmallInt
+  comment    String?
+  photoUrls  String[]     @map("photo_urls")
+  isHidden   Boolean      @default(false) @map("is_hidden")
+  createdAt  DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+  order      Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  author     User         @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  merchant   Merchant?    @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  rider      Rider?       @relation(fields: [riderId], references: [id], onDelete: Cascade)
+  reply      ReviewReply?
+
+  @@unique([orderId, target])
+  @@index([authorId])
+  @@index([merchantId, createdAt])
+  @@index([riderId, createdAt])
+  @@map("reviews")
+}
+
+model ReviewReply {
+  id        String   @id @default(uuid(7)) @db.Uuid
+  reviewId  String   @unique @map("review_id") @db.Uuid
+  authorId  String   @map("author_id") @db.Uuid
+  body      String
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  review    Review   @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+
+  @@index([authorId])
+  @@map("review_replies")
+}
+
+model Ticket {
+  id          String          @id @default(uuid(7)) @db.Uuid
+  code        String          @unique
+  requesterId String          @map("requester_id") @db.Uuid
+  orderId     String?         @map("order_id") @db.Uuid
+  /// order | payment | refund | rider | merchant | account | other
+  category    String
+  subject     String
+  status      TicketStatus    @default(open)
+  priority    TicketPriority  @default(normal)
+  assigneeId  String?         @map("assignee_id") @db.Uuid
+  resolvedAt  DateTime?       @map("resolved_at") @db.Timestamptz(3)
+  createdAt   DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime        @updatedAt @map("updated_at") @db.Timestamptz(3)
+  requester   User            @relation(fields: [requesterId], references: [id], onDelete: Cascade)
+  order       Order?          @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  messages    TicketMessage[]
+
+  @@index([requesterId, createdAt])
+  @@index([orderId])
+  @@index([status, priority])
+  @@index([assigneeId])
+  @@map("tickets")
+}
+
+model TicketMessage {
+  id             String   @id @default(uuid(7)) @db.Uuid
+  ticketId       String   @map("ticket_id") @db.Uuid
+  authorId       String   @map("author_id") @db.Uuid
+  authorRole     UserRole @map("author_role")
+  body           String
+  attachmentUrls String[] @map("attachment_urls")
+  /// Admin-only notes.
+  internal       Boolean  @default(false)
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  ticket         Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  author         User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([ticketId, createdAt])
+  @@index([authorId])
+  @@map("ticket_messages")
+}
+
+model Story {
+  id         String         @id @default(uuid(7)) @db.Uuid
+  merchantId String         @map("merchant_id") @db.Uuid
+  mediaType  StoryMediaType @map("media_type")
+  mediaUrl   String         @map("media_url")
+  caption    String?
+  productId  String?        @map("product_id") @db.Uuid
+  viewCount  Int            @default(0) @map("view_count")
+  expiresAt  DateTime       @map("expires_at") @db.Timestamptz(3)
+  createdAt  DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
+  merchant   Merchant       @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  product    Product?       @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  @@index([merchantId, expiresAt])
+  @@index([productId])
+  @@index([expiresAt])
+  @@map("stories")
+}
+
+model Notification {
+  id        String           @id @default(uuid(7)) @db.Uuid
+  userId    String           @map("user_id") @db.Uuid
+  type      NotificationType
+  title     String
+  body      String
+  data      Json             @default("{}")
+  readAt    DateTime?        @map("read_at") @db.Timestamptz(3)
+  createdAt DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([userId, readAt])
+  @@map("notifications")
+}
+
+/// "Gives Back": round-up / add-on donations.
+model Donation {
+  id             String   @id @default(uuid(7)) @db.Uuid
+  userId         String?  @map("user_id") @db.Uuid
+  orderId        String?  @map("order_id") @db.Uuid
+  causeSlug      String   @map("cause_slug")
+  amountCentavos BigInt   @map("amount_centavos")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  user           User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  order          Order?   @relation(fields: [orderId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([orderId])
+  @@index([causeSlug, createdAt])
+  @@map("donations")
+}

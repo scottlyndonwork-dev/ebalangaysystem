@@ -34,6 +34,7 @@ packages/config     shared ESLint flat config + Prettier config
 - Web: Next.js App Router, TanStack Query, Tailwind, shadcn/ui, TanStack Table, Recharts, react-hook-form + Zod.
 - Services: PayMongo (GCash, Maya, cards, BancNet, payouts), FCM, Semaphore SMS, Google Maps Platform, Cloudflare (DNS/CDN/WAF/rate limits), Cloudflare R2, Claude API, Sentry, Expo EAS.
 - Local dev: local PostgreSQL **17 on port 5433** (`ebalangay_dev`, `ebalangay_test`; PostGIS + pg_trgm; app connects as non-superuser `ebalangay_app`) and Redis via **Memurai on 6379** (dev db 0, tests db 1). No Docker. Windows 10.
+- PostGIS + pg_trgm live in schema `extensions` (Prisma resets never drop them); role `ebalangay_app` has `search_path = public, extensions`. Geography columns are trigger-maintained from lat/lng or GeoJSON; never write them from Prisma.
 - Repo: https://github.com/scottlyndonwork-dev/ebalangaysystem.git (branch `main`).
 - Toolchain pins: TypeScript ~6.0 (typescript-eslint doesn't support TS 7 yet), Prisma 7 (`prisma.config.ts`, adapter-pg, client generated to `apps/api/src/generated`, gitignored).
 - Expo SDK 58 → React 19.3.0 (forced repo-wide via pnpm `overrides`), RN 0.88. NativeWind 4 needs Tailwind 3 (mobile); web uses Tailwind 4. TanStack Table v8, react-day-picker v9.

@@ -22,7 +22,12 @@ export function registerErrorHandling(app: FastifyInstance): void {
         err instanceof RequestValidationError
           ? {
               part: err.part,
-              issues: err.issues.map((i) => ({ path: i.path, message: i.message })),
+              issues: err.issues.map((i) => ({
+                field: i.path.join('.'),
+                path: i.path,
+                code: i.code,
+                message: i.message,
+              })),
             }
           : undefined;
       return reply

@@ -8,7 +8,7 @@ if (!process.env.PRISMA_SKIP_DOTENV && existsSync('.env')) process.loadEnvFile('
 // The shadow DB is pre-created with PostGIS by a superuser, because ebalangay_app cannot
 // create databases or install extensions itself.
 export default defineConfig({
-  schema: 'prisma/schema.prisma',
+  schema: 'prisma/schema',
   migrations: { path: 'prisma/migrations', seed: 'tsx prisma/seed.ts' },
   datasource: {
     url: process.env.DATABASE_URL ?? '',

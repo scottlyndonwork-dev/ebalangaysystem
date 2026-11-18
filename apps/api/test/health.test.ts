@@ -67,6 +67,7 @@ describe('GET /v1/health (dependencies down)', () => {
     const ctx = await buildTestApp({
       db: stubs.db as unknown as Db,
       redis: stubs.redis as unknown as RedisClient,
+      env: { RATE_LIMIT_ENABLED: 'false' },
     });
     try {
       const res = await request(ctx.app.server).get('/v1/health').expect(503);

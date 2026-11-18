@@ -1,0 +1,267 @@
+// eBalangay schema. Conventions:
+// - Tables/columns snake_case via @@map/@map; ids uuid v7; timestamps timestamptz(3), stored UTC.
+// - Money: BigInt centavos (*_centavos). Rates: Int basis points (*_bps).
+// - Geography columns are trigger-maintained from lat/lng or GeoJSON (see the postgis_rls
+//   migration), so Prisma never writes PostGIS types directly.
+// - Merchant-scoped tables have RLS keyed by app.current_merchant_id (see db.ts).
+// - actor/reviewer/creator ids are plain indexed uuids (no FK) so audit history survives deletes.
+
+generator client {
+  provider        = "prisma-client"
+  output          = "../../src/generated/prisma"
+  moduleFormat    = "esm"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  // Extensions live in their own schema so Prisma resets (shadow DB, migrate reset) never drop
+  // them; ebalangay_app cannot recreate PostGIS. search_path must include "extensions".
+  extensions = [postgis(schema: "extensions"), pg_trgm(schema: "extensions")]
+}
+
+enum UserRole {
+  customer
+  rider
+  merchant_owner
+  merchant_staff
+  admin
+  super_admin
+}
+
+enum UserStatus {
+  active
+  suspended
+  deleted
+}
+
+enum Locale {
+  en
+  fil
+  ceb
+}
+
+enum AppPlatform {
+  customer
+  rider
+  merchant
+  merchant_web @map("merchant-web")
+  admin_web    @map("admin-web")
+}
+
+enum DevicePlatform {
+  ios
+  android
+  web
+}
+
+enum BusinessType {
+  restaurant
+  grocery
+  pharmacy
+  retail
+  supplier
+  wholesaler
+}
+
+enum MerchantStatus {
+  draft
+  pending_review
+  active
+  suspended
+  rejected
+  deactivated
+}
+
+enum StaffRolePreset {
+  owner
+  manager
+  cashier
+  kitchen
+}
+
+enum DocumentStatus {
+  pending
+  approved
+  rejected
+  expired
+}
+
+enum OrderStatus {
+  pending_payment
+  placed
+  confirmed
+  preparing
+  ready
+  rider_assigned
+  rider_at_merchant
+  picked_up
+  on_the_way
+  rider_nearby
+  delivered
+  cancelled
+  failed
+}
+
+enum OrderType {
+  regular
+  scheduled
+  gift
+  group
+  wholesale
+  subscription
+  pos
+}
+
+enum OrderActor {
+  customer
+  merchant
+  rider
+  system
+  admin
+}
+
+enum PrepUpdate {
+  being_packed
+  almost_ready
+  rider_called
+}
+
+enum PaymentMethod {
+  gcash
+  maya
+  card
+  bancnet
+  cod
+  wallet
+  points
+}
+
+enum PaymentStatus {
+  pending
+  awaiting_action
+  paid
+  failed
+  expired
+  cancelled
+  refunded
+  partially_refunded
+}
+
+enum RiderStatus {
+  offline
+  online
+  on_delivery
+}
+
+enum RiderVerificationStatus {
+  pending
+  approved
+  rejected
+  suspended
+}
+
+enum VehicleType {
+  motorcycle
+  bicycle
+  car
+  tricycle
+}
+
+enum DeliveryStatus {
+  searching
+  offered
+  assigned
+  at_merchant
+  picked_up
+  delivered
+  cancelled
+  failed
+}
+
+enum WalletOwnerType {
+  customer
+  rider
+  merchant
+  platform
+}
+
+enum WalletTransactionType {
+  top_up
+  payment
+  refund
+  cashback
+  earning
+  payout
+  adjustment
+}
+
+enum PointsTransactionType {
+  earn
+  redeem
+  expire
+  adjustment
+}
+
+enum VoucherDiscountType {
+  fixed
+  percent
+  free_delivery
+}
+
+enum VoucherFunding {
+  platform
+  merchant
+}
+
+enum TicketStatus {
+  open
+  in_progress
+  awaiting_customer
+  resolved
+  closed
+}
+
+enum TicketPriority {
+  low
+  normal
+  high
+  urgent
+}
+
+enum PayeeType {
+  merchant
+  rider
+}
+
+enum PayoutStatus {
+  pending
+  processing
+  paid
+  failed
+  cancelled
+}
+
+enum SettlementStatus {
+  open
+  closed
+  paid
+}
+
+enum StoryMediaType {
+  image
+  video
+}
+
+enum NotificationType {
+  order
+  promo
+  wallet
+  support
+  system
+}
+
+enum ReviewTarget {
+  merchant
+  rider
+}

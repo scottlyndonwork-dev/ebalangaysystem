@@ -1,0 +1,139 @@
+model User {
+  id              String     @id @default(uuid(7)) @db.Uuid
+  phone           String?    @unique
+  email           String?    @unique
+  firstName       String     @default("") @map("first_name")
+  lastName        String     @default("") @map("last_name")
+  avatarUrl       String?    @map("avatar_url")
+  locale          Locale     @default(en)
+  roles           UserRole[] @default([customer])
+  status          UserStatus @default(active)
+  /// scrypt hash; only merchant-web/admin-web users set a password.
+  passwordHash    String?    @map("password_hash")
+  /// AES-GCM encrypted TOTP secret.
+  totpSecretEnc   String?    @map("totp_secret_enc")
+  totpEnabledAt   DateTime?  @map("totp_enabled_at") @db.Timestamptz(3)
+  referralCode    String?    @unique @map("referral_code")
+  phoneVerifiedAt DateTime?  @map("phone_verified_at") @db.Timestamptz(3)
+  lastLoginAt     DateTime?  @map("last_login_at") @db.Timestamptz(3)
+  deletedAt       DateTime?  @map("deleted_at") @db.Timestamptz(3)
+  createdAt       DateTime   @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime   @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  devices            UserDevice[]
+  refreshTokens      RefreshToken[]
+  addresses          Address[]
+  staffMemberships   MerchantStaff[]
+  follows            Follower[]
+  carts              Cart[]
+  hostedGroupCarts   GroupCart[]
+  groupCartMembers   GroupCartMember[]
+  orders             Order[]             @relation("CustomerOrders")
+  chatMessages       OrderChatMessage[]
+  payments           Payment[]
+  pointsAccount      PointsAccount?
+  voucherRedemptions VoucherRedemption[]
+  referralsMade      Referral[]          @relation("Referrer")
+  referredBy         Referral?           @relation("Referee")
+  rider              Rider?
+  reviews            Review[]
+  ticketsRequested   Ticket[]
+  ticketMessages     TicketMessage[]
+  ownedTeams         TeamAccount[]
+  teamMemberships    TeamMember[]
+  subscriptionOrders SubscriptionOrder[]
+  donations          Donation[]
+  notifications      Notification[]
+  subscriptions      Subscription[]
+
+  @@index([status])
+  @@index([createdAt])
+  @@map("users")
+}
+
+model UserDevice {
+  id         String         @id @default(uuid(7)) @db.Uuid
+  userId     String         @map("user_id") @db.Uuid
+  deviceId   String         @map("device_id")
+  platform   DevicePlatform
+  app        AppPlatform
+  pushToken  String?        @map("push_token")
+  appVersion String?        @map("app_version")
+  lastSeenAt DateTime       @default(now()) @map("last_seen_at") @db.Timestamptz(3)
+  createdAt  DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
+  user       User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, deviceId])
+  @@index([pushToken])
+  @@map("user_devices")
+}
+
+/// Opaque rotating refresh tokens. Reusing a rotated token revokes its whole family.
+model RefreshToken {
+  id            String      @id @default(uuid(7)) @db.Uuid
+  userId        String      @map("user_id") @db.Uuid
+  familyId      String      @map("family_id") @db.Uuid
+  /// sha256 of the token; the raw token is never stored.
+  tokenHash     String      @unique @map("token_hash")
+  app           AppPlatform
+  deviceId      String?     @map("device_id")
+  userAgent     String?     @map("user_agent")
+  ip            String?
+  expiresAt     DateTime    @map("expires_at") @db.Timestamptz(3)
+  rotatedAt     DateTime?   @map("rotated_at") @db.Timestamptz(3)
+  revokedAt     DateTime?   @map("revoked_at") @db.Timestamptz(3)
+  revokedReason String?     @map("revoked_reason")
+  createdAt     DateTime    @default(now()) @map("created_at") @db.Timestamptz(3)
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([familyId])
+  @@index([expiresAt])
+  @@map("refresh_tokens")
+}
+
+model OtpRequest {
+  id         String    @id @default(uuid(7)) @db.Uuid
+  phone      String
+  /// HMAC-SHA256 of the code with OTP_PEPPER.
+  codeHash   String    @map("code_hash")
+  ip         String?
+  attempts   Int       @default(0)
+  expiresAt  DateTime  @map("expires_at") @db.Timestamptz(3)
+  consumedAt DateTime? @map("consumed_at") @db.Timestamptz(3)
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@index([phone, createdAt])
+  @@index([ip, createdAt])
+  @@map("otp_requests")
+}
+
+model Address {
+  id                 String                                 @id @default(uuid(7)) @db.Uuid
+  userId             String                                 @map("user_id") @db.Uuid
+  label              String
+  recipientName      String                                 @map("recipient_name")
+  phone              String
+  line1              String
+  line2              String?
+  barangay           String
+  city               String
+  province           String
+  postalCode         String?                                @map("postal_code")
+  lat                Float
+  lng                Float
+  /// Trigger-maintained from lat/lng.
+  location           Unsupported("geography(Point, 4326)")?
+  riderNotes         String?                                @map("rider_notes")
+  gateCode           String?                                @map("gate_code")
+  isDefault          Boolean                                @default(false) @map("is_default")
+  deletedAt          DateTime?                              @map("deleted_at") @db.Timestamptz(3)
+  createdAt          DateTime                               @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime                               @updatedAt @map("updated_at") @db.Timestamptz(3)
+  user               User                                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subscriptionOrders SubscriptionOrder[]
+
+  @@index([userId])
+  @@index([location], type: Gist)
+  @@map("addresses")
+}

@@ -1,0 +1,196 @@
+model Payment {
+  id                 String              @id @default(uuid(7)) @db.Uuid
+  orderId            String?             @map("order_id") @db.Uuid
+  userId             String?             @map("user_id") @db.Uuid
+  method             PaymentMethod
+  status             PaymentStatus       @default(pending)
+  amountCentavos     BigInt              @map("amount_centavos")
+  refundedCentavos   BigInt              @default(0) @map("refunded_centavos")
+  /// paymongo | internal
+  provider           String
+  providerRef        String?             @unique @map("provider_ref")
+  checkoutUrl        String?             @map("checkout_url")
+  idempotencyKey     String              @unique @map("idempotency_key")
+  failureReason      String?             @map("failure_reason")
+  metadata           Json                @default("{}")
+  paidAt             DateTime?           @map("paid_at") @db.Timestamptz(3)
+  createdAt          DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime            @updatedAt @map("updated_at") @db.Timestamptz(3)
+  order              Order?              @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  user               User?               @relation(fields: [userId], references: [id], onDelete: SetNull)
+  refunds            Refund[]
+  walletTransactions WalletTransaction[]
+
+  @@index([orderId])
+  @@index([userId, createdAt])
+  @@index([status])
+  @@map("payments")
+}
+
+model Refund {
+  id             String    @id @default(uuid(7)) @db.Uuid
+  paymentId      String    @map("payment_id") @db.Uuid
+  orderId        String?   @map("order_id") @db.Uuid
+  amountCentavos BigInt    @map("amount_centavos")
+  reason         String
+  /// pending | succeeded | failed
+  status         String    @default("pending")
+  providerRef    String?   @unique @map("provider_ref")
+  idempotencyKey String    @unique @map("idempotency_key")
+  requestedById  String?   @map("requested_by_id") @db.Uuid
+  processedAt    DateTime? @map("processed_at") @db.Timestamptz(3)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  payment        Payment   @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+  order          Order?    @relation(fields: [orderId], references: [id], onDelete: SetNull)
+
+  @@index([paymentId])
+  @@index([orderId])
+  @@index([status])
+  @@map("refunds")
+}
+
+/// One per owner. `balance_centavos` is a cache; the ledger (wallet_transactions) is the truth.
+model Wallet {
+  id              String              @id @default(uuid(7)) @db.Uuid
+  ownerType       WalletOwnerType     @map("owner_type")
+  /// user id (customer), rider id, merchant id, or a fixed uuid for platform accounts.
+  ownerId         String              @map("owner_id") @db.Uuid
+  /// For platform accounts: cash_clearing, revenue, cod_receivable, payouts_clearing, ...
+  purpose         String              @default("main")
+  balanceCentavos BigInt              @default(0) @map("balance_centavos")
+  heldCentavos    BigInt              @default(0) @map("held_centavos")
+  /// Platform accounts may go negative (they mirror external money); user wallets may not.
+  allowNegative   Boolean             @default(false) @map("allow_negative")
+  version         Int                 @default(0)
+  createdAt       DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime            @updatedAt @map("updated_at") @db.Timestamptz(3)
+  transactions    WalletTransaction[]
+  teamAccounts    TeamAccount[]
+
+  @@unique([ownerType, ownerId, purpose])
+  @@map("wallets")
+}
+
+/// Double-entry ledger: rows sharing journal_id sum to zero (enforced by a deferred trigger).
+model WalletTransaction {
+  id                   String                @id @default(uuid(7)) @db.Uuid
+  journalId            String                @map("journal_id") @db.Uuid
+  walletId             String                @map("wallet_id") @db.Uuid
+  type                 WalletTransactionType
+  /// Signed: credit positive, debit negative.
+  amountCentavos       BigInt                @map("amount_centavos")
+  balanceAfterCentavos BigInt                @map("balance_after_centavos")
+  orderId              String?               @map("order_id") @db.Uuid
+  paymentId            String?               @map("payment_id") @db.Uuid
+  payoutId             String?               @map("payout_id") @db.Uuid
+  description          String
+  idempotencyKey       String?               @map("idempotency_key")
+  createdAt            DateTime              @default(now()) @map("created_at") @db.Timestamptz(3)
+  wallet               Wallet                @relation(fields: [walletId], references: [id], onDelete: Restrict)
+  order                Order?                @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  payment              Payment?              @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+  payout               Payout?               @relation(fields: [payoutId], references: [id], onDelete: SetNull)
+
+  @@unique([walletId, idempotencyKey])
+  @@index([walletId, createdAt])
+  @@index([journalId])
+  @@index([orderId])
+  @@index([paymentId])
+  @@index([payoutId])
+  @@map("wallet_transactions")
+}
+
+model PointsAccount {
+  id             String              @id @default(uuid(7)) @db.Uuid
+  userId         String              @unique @map("user_id") @db.Uuid
+  balance        Int                 @default(0)
+  lifetimeEarned Int                 @default(0) @map("lifetime_earned")
+  updatedAt      DateTime            @updatedAt @map("updated_at") @db.Timestamptz(3)
+  user           User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions   PointsTransaction[]
+
+  @@map("points_accounts")
+}
+
+model PointsTransaction {
+  id           String                @id @default(uuid(7)) @db.Uuid
+  accountId    String                @map("account_id") @db.Uuid
+  type         PointsTransactionType
+  points       Int
+  balanceAfter Int                   @map("balance_after")
+  orderId      String?               @map("order_id") @db.Uuid
+  description  String
+  expiresAt    DateTime?             @map("expires_at") @db.Timestamptz(3)
+  createdAt    DateTime              @default(now()) @map("created_at") @db.Timestamptz(3)
+  account      PointsAccount         @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  order        Order?                @relation(fields: [orderId], references: [id], onDelete: SetNull)
+
+  @@index([accountId, createdAt])
+  @@index([orderId])
+  @@index([expiresAt])
+  @@map("points_transactions")
+}
+
+model Voucher {
+  id                  String              @id @default(uuid(7)) @db.Uuid
+  code                String              @unique
+  title               String
+  description         String?
+  discountType        VoucherDiscountType @map("discount_type")
+  amountCentavos      BigInt?             @map("amount_centavos")
+  percentBps          Int?                @map("percent_bps")
+  maxDiscountCentavos BigInt?             @map("max_discount_centavos")
+  minSpendCentavos    BigInt              @default(0) @map("min_spend_centavos")
+  funding             VoucherFunding
+  /// Null = platform-wide.
+  merchantId          String?             @map("merchant_id") @db.Uuid
+  startsAt            DateTime            @map("starts_at") @db.Timestamptz(3)
+  endsAt              DateTime            @map("ends_at") @db.Timestamptz(3)
+  usageLimit          Int?                @map("usage_limit")
+  perUserLimit        Int                 @default(1) @map("per_user_limit")
+  usedCount           Int                 @default(0) @map("used_count")
+  newUsersOnly        Boolean             @default(false) @map("new_users_only")
+  isActive            Boolean             @default(true) @map("is_active")
+  createdById         String?             @map("created_by_id") @db.Uuid
+  createdAt           DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)
+  merchant            Merchant?           @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  redemptions         VoucherRedemption[]
+  orders              Order[]
+
+  @@index([merchantId])
+  @@index([isActive, startsAt, endsAt])
+  @@map("vouchers")
+}
+
+model VoucherRedemption {
+  id               String   @id @default(uuid(7)) @db.Uuid
+  voucherId        String   @map("voucher_id") @db.Uuid
+  userId           String   @map("user_id") @db.Uuid
+  orderId          String   @unique @map("order_id") @db.Uuid
+  discountCentavos BigInt   @map("discount_centavos")
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  voucher          Voucher  @relation(fields: [voucherId], references: [id], onDelete: Restrict)
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  order            Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([voucherId, userId])
+  @@index([userId])
+  @@map("voucher_redemptions")
+}
+
+model Referral {
+  id         String    @id @default(uuid(7)) @db.Uuid
+  referrerId String    @map("referrer_id") @db.Uuid
+  refereeId  String    @unique @map("referee_id") @db.Uuid
+  code       String
+  /// pending | qualified | rewarded | rejected
+  status     String    @default("pending")
+  rewardedAt DateTime? @map("rewarded_at") @db.Timestamptz(3)
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  referrer   User      @relation("Referrer", fields: [referrerId], references: [id], onDelete: Cascade)
+  referee    User      @relation("Referee", fields: [refereeId], references: [id], onDelete: Cascade)
+
+  @@index([referrerId])
+  @@index([status])
+  @@map("referrals")
+}

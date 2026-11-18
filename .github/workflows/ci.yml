@@ -29,8 +29,11 @@ jobs:
         ports: ['6379:6379']
         options: --health-cmd "redis-cli ping" --health-interval 5s --health-retries 10
     env:
-      DATABASE_URL: postgresql://ebalangay:ebalangay@localhost:5432/ebalangay_test
-      TEST_DATABASE_URL: postgresql://ebalangay:ebalangay@localhost:5432/ebalangay_test
+      # Superuser: only for creating extensions and the app role.
+      ADMIN_DATABASE_URL: postgresql://ebalangay:ebalangay@localhost:5432/ebalangay_test
+      # Non-superuser that owns the schema, like local dev, so RLS is actually enforced in tests.
+      DATABASE_URL: postgresql://ebalangay_app:ebalangay_app@localhost:5432/ebalangay_test
+      TEST_DATABASE_URL: postgresql://ebalangay_app:ebalangay_app@localhost:5432/ebalangay_test
       REDIS_URL: redis://localhost:6379/0
       TEST_REDIS_URL: redis://localhost:6379/1
       TURBO_TELEMETRY_DISABLED: 1
@@ -50,10 +53,17 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      - name: Enable PostGIS + pg_trgm
+      - name: Prepare test DB (extensions schema + non-superuser app role, like local dev)
         run: >-
-          psql "$TEST_DATABASE_URL" -c "CREATE EXTENSION IF NOT EXISTS postgis;"
-          -c "CREATE EXTENSION IF NOT EXISTS pg_trgm;"
+          psql "$ADMIN_DATABASE_URL" -v ON_ERROR_STOP=1
+          -c "CREATE ROLE ebalangay_app LOGIN PASSWORD 'ebalangay_app';"
+          -c "ALTER DATABASE ebalangay_test OWNER TO ebalangay_app;"
+          -c "ALTER SCHEMA public OWNER TO ebalangay_app;"
+          -c "CREATE SCHEMA IF NOT EXISTS extensions;"
+          -c "CREATE EXTENSION IF NOT EXISTS postgis SCHEMA extensions;"
+          -c "CREATE EXTENSION IF NOT EXISTS pg_trgm SCHEMA extensions;"
+          -c "GRANT USAGE ON SCHEMA extensions TO ebalangay_app;"
+          -c "ALTER ROLE ebalangay_app SET search_path = public, extensions;"
 
       - name: Apply migrations to test DB
         run: pnpm --filter @ebalangay/api exec prisma migrate deploy

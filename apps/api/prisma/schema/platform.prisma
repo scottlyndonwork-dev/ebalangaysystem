@@ -1,0 +1,68 @@
+/// Transactional outbox: written in the same transaction as the change, relayed by a worker
+/// to Socket.io rooms and push.
+model OutboxEvent {
+  id            String    @id @default(uuid(7)) @db.Uuid
+  /// SocketEvent name, e.g. order.updated
+  event         String
+  aggregateType String    @map("aggregate_type")
+  aggregateId   String    @map("aggregate_id") @db.Uuid
+  version       Int
+  payload       Json
+  rooms         String[]
+  /// Optional push: { userIds, titleKey, bodyKey, params }
+  push          Json?
+  attempts      Int       @default(0)
+  lastError     String?   @map("last_error")
+  processedAt   DateTime? @map("processed_at") @db.Timestamptz(3)
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@index([processedAt, createdAt])
+  @@index([aggregateType, aggregateId])
+  @@map("outbox_events")
+}
+
+model AuditLog {
+  id          String   @id @default(uuid(7)) @db.Uuid
+  actorUserId String?  @map("actor_user_id") @db.Uuid
+  actorRole   String?  @map("actor_role")
+  /// e.g. auth.login, merchant.staff.invite, admin.merchant.approve
+  action      String
+  targetType  String?  @map("target_type")
+  targetId    String?  @map("target_id")
+  merchantId  String?  @map("merchant_id") @db.Uuid
+  ip          String?
+  userAgent   String?  @map("user_agent")
+  metadata    Json     @default("{}")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@index([actorUserId, createdAt])
+  @@index([merchantId, createdAt])
+  @@index([targetType, targetId])
+  @@index([action, createdAt])
+  @@map("audit_logs")
+}
+
+model FeatureFlag {
+  key            String   @id
+  description    String?
+  enabled        Boolean  @default(false)
+  rolloutPercent Int      @default(0) @map("rollout_percent")
+  /// e.g. { cities: ["Butuan City"], roles: ["merchant_owner"] }
+  rules          Json     @default("{}")
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@map("feature_flags")
+}
+
+model AppVersion {
+  id            String         @id @default(uuid(7)) @db.Uuid
+  app           AppPlatform
+  os            DevicePlatform
+  minVersion    String         @map("min_version")
+  latestVersion String         @map("latest_version")
+  releaseNotes  String?        @map("release_notes")
+  updatedAt     DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@unique([app, os])
+  @@map("app_versions")
+}

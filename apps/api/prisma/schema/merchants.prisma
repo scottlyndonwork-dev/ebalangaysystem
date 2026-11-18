@@ -1,0 +1,171 @@
+model Merchant {
+  id                     String                                 @id @default(uuid(7)) @db.Uuid
+  slug                   String                                 @unique
+  name                   String
+  businessType           BusinessType                           @map("business_type")
+  status                 MerchantStatus                         @default(draft)
+  description            String?
+  logoUrl                String?                                @map("logo_url")
+  coverUrl               String?                                @map("cover_url")
+  phone                  String
+  email                  String?
+  addressLine            String                                 @map("address_line")
+  barangay               String
+  city                   String
+  province               String
+  lat                    Float
+  lng                    Float
+  location               Unsupported("geography(Point, 4326)")?
+  zoneId                 String?                                @map("zone_id") @db.Uuid
+  verifiedBadge          Boolean                                @default(false) @map("verified_badge")
+  /// 0-100, computed from fulfilment, ratings and disputes.
+  trustScore             Int                                    @default(50) @map("trust_score")
+  /// Null = platform default commission.
+  commissionBps          Int?                                   @map("commission_bps")
+  /// AES-GCM encrypted settlement account details; label is safe to display.
+  settlementAccountEnc   String?                                @map("settlement_account_enc")
+  settlementAccountLabel String?                                @map("settlement_account_label")
+  deliveryRadiusM        Int                                    @default(5000) @map("delivery_radius_m")
+  prepTimeMinutes        Int                                    @default(20) @map("prep_time_minutes")
+  minOrderCentavos       BigInt                                 @default(0) @map("min_order_centavos")
+  autoAccept             Boolean                                @default(false) @map("auto_accept")
+  pausedUntil            DateTime?                              @map("paused_until") @db.Timestamptz(3)
+  ratingAverage          Decimal                                @default(0) @map("rating_average") @db.Decimal(3, 2)
+  ratingCount            Int                                    @default(0) @map("rating_count")
+  version                Int                                    @default(0)
+  createdAt              DateTime                               @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt              DateTime                               @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  zone               Zone?               @relation(fields: [zoneId], references: [id], onDelete: SetNull)
+  documents          MerchantDocument[]
+  staff              MerchantStaff[]
+  storeHours         StoreHours[]
+  holidayClosures    HolidayClosure[]
+  tags               MerchantTag[]
+  followers          Follower[]
+  categories         Category[]
+  products           Product[]
+  menuSchedules      MenuSchedule[]
+  inventoryLevels    InventoryLevel[]
+  inventoryMoves     InventoryMovement[]
+  carts              Cart[]
+  groupCarts         GroupCart[]
+  orders             Order[]
+  vouchers           Voucher[]
+  reviews            Review[]
+  stories            Story[]
+  payouts            Payout[]
+  settlements        Settlement[]
+  subscriptions      Subscription[]
+  invoices           Invoice[]
+  adCampaigns        AdCampaign[]
+  flashSales         FlashSaleMerchant[]
+  subscriptionOrders SubscriptionOrder[]
+
+  @@index([status])
+  @@index([businessType])
+  @@index([zoneId])
+  @@index([city])
+  @@index([location], type: Gist)
+  @@index([name(ops: raw("gin_trgm_ops"))], type: Gin, map: "merchants_name_trgm_idx")
+  @@map("merchants")
+}
+
+model MerchantDocument {
+  id           String         @id @default(uuid(7)) @db.Uuid
+  merchantId   String         @map("merchant_id") @db.Uuid
+  /// dti | sec | bir | mayors_permit | fda_ltp | valid_id | other
+  type         String
+  /// Private R2 key; ID documents are encrypted at rest (RA 10173).
+  fileKey      String         @map("file_key")
+  status       DocumentStatus @default(pending)
+  notes        String?
+  reviewedById String?        @map("reviewed_by_id") @db.Uuid
+  reviewedAt   DateTime?      @map("reviewed_at") @db.Timestamptz(3)
+  expiresAt    DateTime?      @map("expires_at") @db.Timestamptz(3)
+  createdAt    DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
+  merchant     Merchant       @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+
+  @@index([merchantId])
+  @@index([status])
+  @@map("merchant_documents")
+}
+
+model MerchantStaff {
+  id          String          @id @default(uuid(7)) @db.Uuid
+  merchantId  String          @map("merchant_id") @db.Uuid
+  userId      String          @map("user_id") @db.Uuid
+  displayName String          @map("display_name")
+  rolePreset  StaffRolePreset @map("role_preset")
+  /// MerchantPermission values from @ebalangay/shared.
+  permissions String[]
+  isActive    Boolean         @default(true) @map("is_active")
+  createdAt   DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime        @updatedAt @map("updated_at") @db.Timestamptz(3)
+  merchant    Merchant        @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([merchantId, userId])
+  @@index([userId])
+  @@map("merchant_staff")
+}
+
+model StoreHours {
+  id         String   @id @default(uuid(7)) @db.Uuid
+  merchantId String   @map("merchant_id") @db.Uuid
+  /// 0 = Sunday
+  dayOfWeek  Int      @map("day_of_week") @db.SmallInt
+  /// "HH:mm" Manila time; closesAt <= opensAt means past midnight.
+  opensAt    String   @map("opens_at")
+  closesAt   String   @map("closes_at")
+  merchant   Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+
+  @@index([merchantId, dayOfWeek])
+  @@map("store_hours")
+}
+
+model HolidayClosure {
+  id         String   @id @default(uuid(7)) @db.Uuid
+  merchantId String   @map("merchant_id") @db.Uuid
+  date       DateTime @db.Date
+  closed     Boolean  @default(true)
+  opensAt    String?  @map("opens_at")
+  closesAt   String?  @map("closes_at")
+  note       String?
+  merchant   Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+
+  @@unique([merchantId, date])
+  @@map("holiday_closures")
+}
+
+model StoreTag {
+  id        String        @id @default(uuid(7)) @db.Uuid
+  slug      String        @unique
+  name      String
+  merchants MerchantTag[]
+
+  @@map("store_tags")
+}
+
+model MerchantTag {
+  merchantId String   @map("merchant_id") @db.Uuid
+  tagId      String   @map("tag_id") @db.Uuid
+  merchant   Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  tag        StoreTag @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([merchantId, tagId])
+  @@index([tagId])
+  @@map("merchant_store_tags")
+}
+
+model Follower {
+  userId     String   @map("user_id") @db.Uuid
+  merchantId String   @map("merchant_id") @db.Uuid
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  merchant   Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+
+  @@id([userId, merchantId])
+  @@index([merchantId])
+  @@map("followers")
+}

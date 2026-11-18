@@ -2,6 +2,17 @@ import {
   type AppPlatform,
   type AuthTokens,
   authTokensSchema,
+  type CookieSession,
+  cookieSessionSchema,
+  type Device,
+  deviceSchema,
+  type LoginResponse,
+  loginResponseSchema,
+  type PasswordLoginInput,
+  type RegisterDeviceInput,
+  type TotpLoginInput,
+  type TotpSetupResponse,
+  totpSetupResponseSchema,
   ErrorCode,
   type HealthResponse,
   healthResponseSchema,
@@ -239,12 +250,44 @@ export function createApiClient(options: ApiClientOptions) {
         post('/v1/auth/otp/request', input, { schema: requestOtpResponseSchema, auth: false }),
       verifyOtp: (input: VerifyOtpInput): Promise<VerifyOtpResponse> =>
         post('/v1/auth/otp/verify', input, { schema: verifyOtpResponseSchema, auth: false }),
-      /** Use inside your refreshToken callback. Refresh tokens rotate on every call. */
+      /** Mobile: use inside your refreshToken callback. Refresh tokens rotate on every call. */
       refresh: (input: RefreshTokenInput): Promise<AuthTokens> =>
         post('/v1/auth/refresh', input, { schema: authTokensSchema, auth: false }),
+      /** Web (credentials: 'include'): rotates the httpOnly cookies; tokens never reach JS. */
+      refreshCookie: (): Promise<CookieSession> =>
+        post('/v1/auth/refresh', {}, { schema: cookieSessionSchema, auth: false }),
       logout: (input: LogoutInput = {}): Promise<void> =>
         post('/v1/auth/logout', input).then(() => undefined),
+      /** merchant-web / admin-web. May ask for a TOTP step; see LoginResponse.status. */
+      login: (input: PasswordLoginInput): Promise<LoginResponse> =>
+        post('/v1/auth/login', input, { schema: loginResponseSchema, auth: false }),
+      loginTotp: (input: TotpLoginInput): Promise<LoginResponse> =>
+        post('/v1/auth/login/totp', input, { schema: loginResponseSchema, auth: false }),
+      /** Pass mfaToken while enrolling during an admin's first sign-in; omit when signed in. */
+      totpSetup: (mfaToken?: string): Promise<TotpSetupResponse> =>
+        post('/v1/auth/totp/setup', mfaToken ? { mfaToken } : {}, {
+          schema: totpSetupResponseSchema,
+          auth: !mfaToken,
+        }),
+      /** With mfaToken: finishes sign-in and returns the session. Signed in: returns null. */
+      totpEnable: async (code: string, mfaToken?: string): Promise<LoginResponse | null> =>
+        mfaToken
+          ? post(
+              '/v1/auth/totp/enable',
+              { code, mfaToken },
+              { schema: loginResponseSchema, auth: false },
+            )
+          : post('/v1/auth/totp/enable', { code }).then(() => null),
+      totpDisable: (code: string): Promise<void> =>
+        post('/v1/auth/totp/disable', { code }).then(() => undefined),
       me: (signal?: AbortSignal): Promise<User> => get('/v1/me', { schema: userSchema, signal }),
+    },
+    devices: {
+      /** Call on every app start and whenever the Expo push token changes. */
+      register: (input: RegisterDeviceInput): Promise<Device> =>
+        post('/v1/me/devices', input, { schema: deviceSchema }),
+      remove: (deviceId: string): Promise<void> =>
+        request('DELETE', `/v1/me/devices/${encodeURIComponent(deviceId)}`).then(() => undefined),
     },
   };
 }

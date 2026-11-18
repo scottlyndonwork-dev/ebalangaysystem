@@ -3,25 +3,54 @@ import { Headers } from '@ebalangay/shared';
 import Fastify, { type FastifyInstance } from 'fastify';
 import type { Db } from './db.js';
 import type { Env } from './env.js';
+import { createSmsSender, type SmsSender } from './lib/sms.js';
 import { serializerCompiler, validatorCompiler } from './lib/zod-provider.js';
+import { adminRoutes } from './modules/admin/routes.js';
+import { authRoutes } from './modules/auth/routes.js';
+import { healthRoutes } from './modules/health/routes.js';
+import { merchantRoutes } from './modules/merchants/routes.js';
+import { meRoutes } from './modules/users/routes.js';
 import { registerAppVersionCheck } from './plugins/app-version.js';
+import { authPlugin } from './plugins/auth.js';
 import { registerErrorHandling } from './plugins/errors.js';
+import { infraPlugin } from './plugins/infra.js';
+import { rateLimitPlugin } from './plugins/rate-limit.js';
+import { securityPlugin } from './plugins/security.js';
+import { swaggerPlugin } from './plugins/swagger.js';
 import type { RedisClient } from './redis.js';
-import { healthRoutes } from './routes/v1/health.js';
 
-export const API_VERSION = '0.1.0';
+export { API_VERSION } from './version.js';
 
 export interface AppDeps {
   env: Env;
   db: Db;
   redis: RedisClient;
+  /** Defaults to the driver selected by SMS_DRIVER. Tests pass a MemorySms. */
+  sms?: SmsSender;
 }
 
-export async function buildApp({ env, db, redis }: AppDeps): Promise<FastifyInstance> {
+/** Never log secrets: tokens, OTP codes, passwords, TOTP codes, card data. */
+const REDACT = [
+  'req.headers.authorization',
+  'req.headers.cookie',
+  'res.headers["set-cookie"]',
+  '*.password',
+  '*.newPassword',
+  '*.code',
+  '*.otp',
+  '*.totpCode',
+  '*.accessToken',
+  '*.refreshToken',
+  '*.token',
+  '*.cardNumber',
+  '*.cvc',
+];
+
+export async function buildApp({ env, db, redis, sms }: AppDeps): Promise<FastifyInstance> {
   const app = Fastify({
     logger: {
       level: env.LOG_LEVEL,
-      redact: ['req.headers.authorization', 'req.headers.cookie', 'res.headers["set-cookie"]'],
+      redact: { paths: REDACT, censor: '[redacted]' },
       ...(env.NODE_ENV === 'development' ? { transport: { target: 'pino-pretty' } } : {}),
     },
     genReqId: (req) => {
@@ -32,7 +61,8 @@ export async function buildApp({ env, db, redis }: AppDeps): Promise<FastifyInst
     },
     requestIdHeader: false,
     bodyLimit: 1_048_576,
-    trustProxy: true,
+    // Trust only the first TRUST_PROXY_HOPS hops (i = 0 is the socket peer).
+    trustProxy: (_addr: string, i: number) => i < env.TRUST_PROXY_HOPS,
   });
 
   app.setValidatorCompiler(validatorCompiler);
@@ -42,14 +72,18 @@ export async function buildApp({ env, db, redis }: AppDeps): Promise<FastifyInst
   });
 
   registerErrorHandling(app);
+  await app.register(infraPlugin, { env, db, redis, sms: sms ?? createSmsSender(env) });
+  await app.register(securityPlugin);
+  await app.register(authPlugin);
+  await app.register(rateLimitPlugin);
+  await app.register(swaggerPlugin);
   registerAppVersionCheck(app, env.MIN_APP_VERSION);
 
-  await app.register(
-    async (v1) => {
-      await v1.register(healthRoutes({ db, redis, version: API_VERSION }));
-    },
-    { prefix: '/v1' },
-  );
+  await app.register(healthRoutes);
+  await app.register(authRoutes, { prefix: '/v1/auth' });
+  await app.register(meRoutes, { prefix: '/v1/me' });
+  await app.register(merchantRoutes, { prefix: '/v1/merchants' });
+  await app.register(adminRoutes, { prefix: '/v1/admin' });
 
   return app;
 }

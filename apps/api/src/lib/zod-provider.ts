@@ -24,7 +24,8 @@ export class RequestValidationError extends Error {
 export const validatorCompiler: FastifySchemaCompiler<z.ZodType> =
   ({ schema, httpPart }) =>
   (data) => {
-    const result = schema.safeParse(data);
+    // Fastify hands an absent body over as null; treat it as "not sent" so optional bodies work.
+    const result = schema.safeParse(httpPart === 'body' && data === null ? undefined : data);
     return result.success
       ? { value: result.data }
       : { error: new RequestValidationError(httpPart ?? 'body', result.error.issues) };

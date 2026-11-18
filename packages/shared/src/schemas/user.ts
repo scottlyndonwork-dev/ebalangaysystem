@@ -6,7 +6,8 @@ export const userSchema = z.object({
   id: idSchema,
   phone: phPhoneSchema,
   email: z.email().nullable(),
-  firstName: z.string().min(1).max(80),
+  /** Empty until the user completes their profile after their first OTP sign-in. */
+  firstName: z.string().max(80),
   lastName: z.string().max(80),
   avatarUrl: urlSchema.nullable(),
   roles: z.array(userRoleSchema).min(1),
