@@ -8,6 +8,8 @@ import { createStorage, type Storage } from './lib/storage.js';
 import { serializerCompiler, validatorCompiler } from './lib/zod-provider.js';
 import { adminRoutes } from './modules/admin/routes.js';
 import { authRoutes } from './modules/auth/routes.js';
+import { searchRoutes } from './modules/browse/search.js';
+import { browseStoreRoutes } from './modules/browse/stores.js';
 import { healthRoutes } from './modules/health/routes.js';
 import { catalogRoutes } from './modules/catalog/routes.js';
 import { merchantRoutes } from './modules/merchants/routes.js';
@@ -103,6 +105,8 @@ export async function buildApp({
   await app.register(merchantRoutes, { prefix: '/v1/merchants' });
   await app.register(catalogRoutes, { prefix: '/v1/merchants' });
   await app.register(storeRoutes, { prefix: '/v1/stores' });
+  await app.register(browseStoreRoutes, { prefix: '/v1/stores' });
+  await app.register(searchRoutes, { prefix: '/v1/search' });
   await app.register(adminRoutes, { prefix: '/v1/admin' });
 
   return app;

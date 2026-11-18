@@ -156,7 +156,13 @@ export const merchantSummarySchema = merchantSchema
     minOrderCentavos: true,
   })
   .extend({
+    verifiedBadge: z.boolean(),
+    freeDelivery: z.boolean(),
+    closedReason: closedReasonSchema.nullable(),
+    closesInMinutes: z.number().int().nonnegative().nullable(),
+    /** Null when the caller sent no location. */
     distanceMeters: z.number().int().nonnegative().nullable(),
+    /** Filled by checkout pricing (2B-4); null until then. */
     deliveryFeeCentavos: nonNegativeCentavosSchema.nullable(),
     etaMinutes: z.number().int().nonnegative().nullable(),
   });
@@ -194,15 +200,6 @@ export const updateMerchantInputSchema = createMerchantInputSchema
   })
   .partial();
 export type UpdateMerchantInput = z.infer<typeof updateMerchantInputSchema>;
-
-export const listMerchantsQuerySchema = cursorPageQuerySchema.extend({
-  lat: z.coerce.number().min(-90).max(90).optional(),
-  lng: z.coerce.number().min(-180).max(180).optional(),
-  businessType: businessTypeSchema.optional(),
-  q: z.string().trim().min(1).max(100).optional(),
-  openNow: z.stringbool().optional(),
-});
-export type ListMerchantsQuery = z.infer<typeof listMerchantsQuerySchema>;
 
 /** Stores the signed-in user works at (merchant app store picker). */
 export const myMerchantSchema = z.object({
