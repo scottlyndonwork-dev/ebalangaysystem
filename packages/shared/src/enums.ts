@@ -130,6 +130,15 @@ export const MerchantStatus = {
 export type MerchantStatus = ValueOf<typeof MerchantStatus>;
 export const merchantStatusSchema = zEnum(MerchantStatus);
 
+export const DocumentStatus = {
+  PENDING: 'pending',
+  APPROVED: 'approved',
+  REJECTED: 'rejected',
+  EXPIRED: 'expired',
+} as const;
+export type DocumentStatus = ValueOf<typeof DocumentStatus>;
+export const documentStatusSchema = zEnum(DocumentStatus);
+
 export const TicketStatus = {
   OPEN: 'open',
   IN_PROGRESS: 'in_progress',

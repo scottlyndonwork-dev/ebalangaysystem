@@ -154,5 +154,8 @@ export const fil: Resources = {
     orderCancelled: { title: 'Kinansela ang order', body: 'Kinansela ang order {{code}}.' },
     newOrder: { title: 'Bagong order', body: 'Order {{code}}: {{count}} item.' },
     jobOffer: { title: 'Bagong delivery', body: 'Pickup sa {{store}}. Kita: {{fee}}.' }, // TODO(native-review)
+    staffInvite: {
+      sms: 'Idinagdag ka sa {{store}} sa eBalangay. Mag-sign in sa eBalangay Merchant app gamit ang numerong ito.', // TODO(native-review)
+    },
   },
 };

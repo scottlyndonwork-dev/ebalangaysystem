@@ -6,6 +6,7 @@ import { buildApp } from '../src/app.js';
 import { createDb, type Db } from '../src/db.js';
 import { type Env, type EnvInput, loadEnv } from '../src/env.js';
 import { MemorySms } from '../src/lib/sms.js';
+import { MemoryStorage } from '../src/lib/storage.js';
 import { createRedis, type RedisClient } from '../src/redis.js';
 
 /** Fixed, non-secret values so tests and CI need no real secrets. */
@@ -33,17 +34,24 @@ export function testEnv(overrides: EnvInput = {}): Env {
 
 export async function buildTestApp(
   opts: { db?: Db; redis?: RedisClient; env?: EnvInput } = {},
-): Promise<{ app: FastifyInstance; sms: MemorySms; close: () => Promise<void> }> {
+): Promise<{
+  app: FastifyInstance;
+  sms: MemorySms;
+  storage: MemoryStorage;
+  close: () => Promise<void>;
+}> {
   const env = testEnv(opts.env);
   const db = opts.db ?? createDb(env.DATABASE_URL);
   const redis = opts.redis ?? createRedis(env.REDIS_URL);
   if (!opts.redis) await redis.connect();
   const sms = new MemorySms();
-  const app = await buildApp({ env, db, redis, sms });
+  const storage = new MemoryStorage();
+  const app = await buildApp({ env, db, redis, sms, storage });
   await app.ready();
   return {
     app,
     sms,
+    storage,
     close: async () => {
       await app.close();
       if (!opts.db) await db.$disconnect();

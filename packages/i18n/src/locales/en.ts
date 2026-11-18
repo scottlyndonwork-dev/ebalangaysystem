@@ -151,5 +151,8 @@ export const en = {
     orderCancelled: { title: 'Order cancelled', body: 'Order {{code}} was cancelled.' },
     newOrder: { title: 'New order', body: 'Order {{code}}: {{count}} item(s).' },
     jobOffer: { title: 'New delivery job', body: 'Pickup at {{store}}. Earn {{fee}}.' },
+    staffInvite: {
+      sms: 'You were added to {{store}} on eBalangay. Sign in to the eBalangay Merchant app with this number.',
+    },
   },
 } as const;

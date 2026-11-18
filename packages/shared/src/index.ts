@@ -4,6 +4,7 @@ export * from './money.js';
 export * from './order-state-machine.js';
 export * from './permissions.js';
 export * from './socket.js';
+export * from './store-availability.js';
 export * from './time.js';
 export * from './version.js';
 export * from './schemas/address.js';

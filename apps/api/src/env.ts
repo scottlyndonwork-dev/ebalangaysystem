@@ -65,8 +65,25 @@ const envSchema = z
     SMS_DRIVER: z.enum(['console', 'semaphore']).default('console'),
     SEMAPHORE_API_KEY: z.string().optional(),
     SEMAPHORE_SENDER_NAME: z.string().default('EBALANGAY'),
+
+    // Object storage (Cloudflare R2, S3 API). `memory` = in-process fake for dev/tests.
+    STORAGE_DRIVER: z.enum(['memory', 'r2']).default('memory'),
+    R2_ACCOUNT_ID: z.string().optional(),
+    R2_ACCESS_KEY_ID: z.string().optional(),
+    R2_SECRET_ACCESS_KEY: z.string().optional(),
+    /** Private bucket: ID/business documents. Only reachable via short-lived signed URLs. */
+    R2_PRIVATE_BUCKET: z.string().default('ebalangay-private'),
+    /** Public bucket: logos, covers, product images (served via CDN). */
+    R2_PUBLIC_BUCKET: z.string().default('ebalangay-public'),
+    R2_PUBLIC_BASE_URL: z.url().default('https://cdn.ebalangay.ph'),
   })
   .superRefine((env, ctx) => {
+    if (env.STORAGE_DRIVER === 'r2') {
+      for (const key of ['R2_ACCOUNT_ID', 'R2_ACCESS_KEY_ID', 'R2_SECRET_ACCESS_KEY'] as const) {
+        if (!env[key])
+          ctx.addIssue({ code: 'custom', path: [key], message: 'Required when STORAGE_DRIVER=r2' });
+      }
+    }
     if (env.SMS_DRIVER === 'semaphore' && !env.SEMAPHORE_API_KEY) {
       ctx.addIssue({
         code: 'custom',
@@ -87,6 +104,13 @@ const envSchema = z
           code: 'custom',
           path: ['ADMIN_IP_ALLOWLIST'],
           message: 'Required in production',
+        });
+      }
+      if (env.STORAGE_DRIVER !== 'r2') {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['STORAGE_DRIVER'],
+          message: 'Must be r2 in production',
         });
       }
       if (env.CORS_ORIGINS.length === 0) {

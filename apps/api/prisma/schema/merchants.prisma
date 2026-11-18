@@ -41,6 +41,9 @@ model Merchant {
   /// Rolling 30-day avg seconds placed -> confirmed; refreshed by the metrics job.
   avgResponseSeconds     Int?                                   @map("avg_response_seconds")
   applicationSubmittedAt DateTime?                              @map("application_submitted_at") @db.Timestamptz(3)
+  /// Admin's decision note (rejection reason shown to the merchant).
+  applicationReviewNote  String?                                @map("application_review_note")
+  applicationReviewedAt  DateTime?                              @map("application_reviewed_at") @db.Timestamptz(3)
   ratingAverage          Decimal                                @default(0) @map("rating_average") @db.Decimal(3, 2)
   ratingCount            Int                                    @default(0) @map("rating_count")
   version                Int                                    @default(0)

@@ -154,5 +154,8 @@ export const ceb: Resources = {
     orderCancelled: { title: 'Gikansela ang order', body: 'Gikansela ang order {{code}}.' },
     newOrder: { title: 'Bag-ong order', body: 'Order {{code}}: {{count}} ka item.' },
     jobOffer: { title: 'Bag-ong delivery', body: 'Pickup sa {{store}}. Kita: {{fee}}.' }, // TODO(native-review)
+    staffInvite: {
+      sms: 'Gidugang ka sa {{store}} sa eBalangay. Pag-sign in sa eBalangay Merchant app gamit kining numero.', // TODO(native-review)
+    },
   },
 };

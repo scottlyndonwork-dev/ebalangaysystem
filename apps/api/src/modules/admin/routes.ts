@@ -3,6 +3,7 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import type { ZodTypeProvider } from '../../lib/zod-provider.js';
 import { requireAdmin } from '../../plugins/auth.js';
+import { adminMerchantRoutes } from './merchants.js';
 
 const tags = ['admin'];
 
@@ -60,4 +61,6 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       };
     },
   );
+
+  await app.register(adminMerchantRoutes);
 }

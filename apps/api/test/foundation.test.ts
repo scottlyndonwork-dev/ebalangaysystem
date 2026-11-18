@@ -75,6 +75,10 @@ describe('config', () => {
       SEMAPHORE_API_KEY: 'k',
       ADMIN_IP_ALLOWLIST: '10.0.0.0/8',
       CORS_ORIGINS: 'https://admin.ebalangay.ph',
+      STORAGE_DRIVER: 'r2',
+      R2_ACCOUNT_ID: 'acct',
+      R2_ACCESS_KEY_ID: 'key',
+      R2_SECRET_ACCESS_KEY: 'secret',
     });
     expect(env.DOCS_ENABLED).toBe(false);
   });

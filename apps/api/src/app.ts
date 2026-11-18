@@ -4,11 +4,13 @@ import Fastify, { type FastifyInstance } from 'fastify';
 import type { Db } from './db.js';
 import type { Env } from './env.js';
 import { createSmsSender, type SmsSender } from './lib/sms.js';
+import { createStorage, type Storage } from './lib/storage.js';
 import { serializerCompiler, validatorCompiler } from './lib/zod-provider.js';
 import { adminRoutes } from './modules/admin/routes.js';
 import { authRoutes } from './modules/auth/routes.js';
 import { healthRoutes } from './modules/health/routes.js';
 import { merchantRoutes } from './modules/merchants/routes.js';
+import { meStoreRoutes, storeRoutes } from './modules/stores/routes.js';
 import { meRoutes } from './modules/users/routes.js';
 import { registerAppVersionCheck } from './plugins/app-version.js';
 import { authPlugin } from './plugins/auth.js';
@@ -27,6 +29,8 @@ export interface AppDeps {
   redis: RedisClient;
   /** Defaults to the driver selected by SMS_DRIVER. Tests pass a MemorySms. */
   sms?: SmsSender;
+  /** Defaults to the driver selected by STORAGE_DRIVER. Tests pass a MemoryStorage. */
+  storage?: Storage;
 }
 
 /** Never log secrets: tokens, OTP codes, passwords, TOTP codes, card data. */
@@ -46,7 +50,13 @@ const REDACT = [
   '*.cvc',
 ];
 
-export async function buildApp({ env, db, redis, sms }: AppDeps): Promise<FastifyInstance> {
+export async function buildApp({
+  env,
+  db,
+  redis,
+  sms,
+  storage,
+}: AppDeps): Promise<FastifyInstance> {
   const app = Fastify({
     logger: {
       level: env.LOG_LEVEL,
@@ -72,7 +82,13 @@ export async function buildApp({ env, db, redis, sms }: AppDeps): Promise<Fastif
   });
 
   registerErrorHandling(app);
-  await app.register(infraPlugin, { env, db, redis, sms: sms ?? createSmsSender(env) });
+  await app.register(infraPlugin, {
+    env,
+    db,
+    redis,
+    sms: sms ?? createSmsSender(env),
+    storage: storage ?? createStorage(env),
+  });
   await app.register(securityPlugin);
   await app.register(authPlugin);
   await app.register(rateLimitPlugin);
@@ -82,7 +98,9 @@ export async function buildApp({ env, db, redis, sms }: AppDeps): Promise<Fastif
   await app.register(healthRoutes);
   await app.register(authRoutes, { prefix: '/v1/auth' });
   await app.register(meRoutes, { prefix: '/v1/me' });
+  await app.register(meStoreRoutes, { prefix: '/v1/me' });
   await app.register(merchantRoutes, { prefix: '/v1/merchants' });
+  await app.register(storeRoutes, { prefix: '/v1/stores' });
   await app.register(adminRoutes, { prefix: '/v1/admin' });
 
   return app;
