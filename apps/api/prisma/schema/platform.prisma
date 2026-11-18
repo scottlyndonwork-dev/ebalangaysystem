@@ -66,3 +66,14 @@ model AppVersion {
   @@unique([app, os])
   @@map("app_versions")
 }
+
+/// Admin-tunable platform values (e.g. cancellation_protection_bps, default_commission_bps).
+model PlatformSetting {
+  key         String   @id
+  value       Json
+  description String?
+  updatedById String?  @map("updated_by_id") @db.Uuid
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@map("platform_settings")
+}

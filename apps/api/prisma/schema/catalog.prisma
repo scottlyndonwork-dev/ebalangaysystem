@@ -13,21 +13,27 @@ model Category {
 }
 
 model Product {
-  id                     String    @id @default(uuid(7)) @db.Uuid
-  merchantId             String    @map("merchant_id") @db.Uuid
-  categoryId             String?   @map("category_id") @db.Uuid
+  id                     String                   @id @default(uuid(7)) @db.Uuid
+  merchantId             String                   @map("merchant_id") @db.Uuid
+  categoryId             String?                  @map("category_id") @db.Uuid
   name                   String
   description            String?
-  basePriceCentavos      BigInt    @map("base_price_centavos")
-  compareAtPriceCentavos BigInt?   @map("compare_at_price_centavos")
+  basePriceCentavos      BigInt                   @map("base_price_centavos")
+  compareAtPriceCentavos BigInt?                  @map("compare_at_price_centavos")
   sku                    String?
-  isAvailable            Boolean   @default(true) @map("is_available")
-  trackInventory         Boolean   @default(false) @map("track_inventory")
-  sortOrder              Int       @default(0) @map("sort_order")
-  version                Int       @default(0)
-  deletedAt              DateTime? @map("deleted_at") @db.Timestamptz(3)
-  createdAt              DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt              DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  isAvailable            Boolean                  @default(true) @map("is_available")
+  trackInventory         Boolean                  @default(false) @map("track_inventory")
+  /// Store auto-pauses when a key product's stock hits zero.
+  isKey                  Boolean                  @default(false) @map("is_key")
+  /// e.g. vegetarian, vegan, halal, gluten_free
+  dietaryTags            String[]                 @default([]) @map("dietary_tags")
+  /// Trigger-maintained from name + description; never written from Prisma.
+  searchTsv              Unsupported("tsvector")? @map("search_tsv")
+  sortOrder              Int                      @default(0) @map("sort_order")
+  version                Int                      @default(0)
+  deletedAt              DateTime?                @map("deleted_at") @db.Timestamptz(3)
+  createdAt              DateTime                 @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt              DateTime                 @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   merchant        Merchant            @relation(fields: [merchantId], references: [id], onDelete: Cascade)
   category        Category?           @relation(fields: [categoryId], references: [id], onDelete: SetNull)
@@ -44,17 +50,23 @@ model Product {
   @@index([merchantId, isAvailable])
   @@index([categoryId])
   @@index([merchantId, sku])
+  @@index([merchantId, basePriceCentavos])
+  @@index([dietaryTags], type: Gin)
+  @@index([searchTsv], type: Gin)
   @@index([name(ops: raw("gin_trgm_ops"))], type: Gin, map: "products_name_trgm_idx")
   @@map("products")
 }
 
 model ProductImage {
-  id        String  @id @default(uuid(7)) @db.Uuid
-  productId String  @map("product_id") @db.Uuid
-  url       String
-  fileKey   String? @map("file_key")
-  sortOrder Int     @default(0) @map("sort_order")
-  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  id         String  @id @default(uuid(7)) @db.Uuid
+  productId  String  @map("product_id") @db.Uuid
+  /// Full-size WebP; thumb (200px) and display (800px) renditions alongside.
+  url        String
+  thumbUrl   String? @map("thumb_url")
+  displayUrl String? @map("display_url")
+  fileKey    String? @map("file_key")
+  sortOrder  Int     @default(0) @map("sort_order")
+  product    Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   @@index([productId, sortOrder])
   @@map("product_images")
@@ -243,15 +255,17 @@ model GroupCart {
 }
 
 model GroupCartMember {
-  id          String     @id @default(uuid(7)) @db.Uuid
-  groupCartId String     @map("group_cart_id") @db.Uuid
-  userId      String     @map("user_id") @db.Uuid
-  displayName String     @map("display_name")
-  isReady     Boolean    @default(false) @map("is_ready")
-  joinedAt    DateTime   @default(now()) @map("joined_at") @db.Timestamptz(3)
-  groupCart   GroupCart  @relation(fields: [groupCartId], references: [id], onDelete: Cascade)
-  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  items       CartItem[]
+  id                String     @id @default(uuid(7)) @db.Uuid
+  groupCartId       String     @map("group_cart_id") @db.Uuid
+  userId            String     @map("user_id") @db.Uuid
+  displayName       String     @map("display_name")
+  isReady           Boolean    @default(false) @map("is_ready")
+  /// Member's share, set by the checkout quote (items + pro-rata fees/discounts).
+  amountDueCentavos BigInt?    @map("amount_due_centavos")
+  joinedAt          DateTime   @default(now()) @map("joined_at") @db.Timestamptz(3)
+  groupCart         GroupCart  @relation(fields: [groupCartId], references: [id], onDelete: Cascade)
+  user              User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items             CartItem[]
 
   @@unique([groupCartId, userId])
   @@index([userId])

@@ -30,13 +30,24 @@ model Merchant {
   minOrderCentavos       BigInt                                 @default(0) @map("min_order_centavos")
   autoAccept             Boolean                                @default(false) @map("auto_accept")
   pausedUntil            DateTime?                              @map("paused_until") @db.Timestamptz(3)
+  pauseMessage           String?                                @map("pause_message")
+  /// Set by the system (e.g. a key product sold out); cleared on restock or manual resume.
+  autoPausedReason       String?                                @map("auto_paused_reason")
+  autoPausedAt           DateTime?                              @map("auto_paused_at") @db.Timestamptz(3)
+  /// Minimum lead time for scheduled orders (e.g. 24 for catering). 0 = no advance rule.
+  advanceOrderHours      Int                                    @default(0) @map("advance_order_hours")
+  /// Merchant-funded free delivery.
+  freeDelivery           Boolean                                @default(false) @map("free_delivery")
+  /// Rolling 30-day avg seconds placed -> confirmed; refreshed by the metrics job.
+  avgResponseSeconds     Int?                                   @map("avg_response_seconds")
+  applicationSubmittedAt DateTime?                              @map("application_submitted_at") @db.Timestamptz(3)
   ratingAverage          Decimal                                @default(0) @map("rating_average") @db.Decimal(3, 2)
   ratingCount            Int                                    @default(0) @map("rating_count")
   version                Int                                    @default(0)
   createdAt              DateTime                               @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt              DateTime                               @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  zone               Zone?               @relation(fields: [zoneId], references: [id], onDelete: SetNull)
+  zone               Zone?                   @relation(fields: [zoneId], references: [id], onDelete: SetNull)
   documents          MerchantDocument[]
   staff              MerchantStaff[]
   storeHours         StoreHours[]
@@ -61,8 +72,13 @@ model Merchant {
   adCampaigns        AdCampaign[]
   flashSales         FlashSaleMerchant[]
   subscriptionOrders SubscriptionOrder[]
+  customerBlocks     MerchantCustomerBlock[]
 
   @@index([status])
+  @@index([status, zoneId])
+  @@index([verifiedBadge])
+  @@index([freeDelivery])
+  @@index([ratingAverage])
   @@index([businessType])
   @@index([zoneId])
   @@index([city])
@@ -168,4 +184,19 @@ model Follower {
   @@id([userId, merchantId])
   @@index([merchantId])
   @@map("followers")
+}
+
+/// Per-merchant customer blacklist, enforced at checkout.
+model MerchantCustomerBlock {
+  merchantId  String   @map("merchant_id") @db.Uuid
+  userId      String   @map("user_id") @db.Uuid
+  reason      String?
+  createdById String?  @map("created_by_id") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  merchant    Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([merchantId, userId])
+  @@index([userId])
+  @@map("merchant_customer_blocks")
 }

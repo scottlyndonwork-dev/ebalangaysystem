@@ -1,54 +1,65 @@
 model Order {
-  id                    String                                 @id @default(uuid(7)) @db.Uuid
+  id                               String                                 @id @default(uuid(7)) @db.Uuid
   /// Human code, e.g. EB-7K2Q9.
-  code                  String                                 @unique
+  code                             String                                 @unique
   /// Bumped on every change; socket events carry it.
-  version               Int                                    @default(0)
-  type                  OrderType                              @default(regular)
-  status                OrderStatus                            @default(pending_payment)
-  prepUpdate            PrepUpdate?                            @map("prep_update")
-  merchantId            String                                 @map("merchant_id") @db.Uuid
-  customerId            String?                                @map("customer_id") @db.Uuid
-  riderId               String?                                @map("rider_id") @db.Uuid
-  groupCartId           String?                                @map("group_cart_id") @db.Uuid
-  teamAccountId         String?                                @map("team_account_id") @db.Uuid
-  subscriptionOrderId   String?                                @map("subscription_order_id") @db.Uuid
+  version                          Int                                    @default(0)
+  type                             OrderType                              @default(regular)
+  status                           OrderStatus                            @default(pending_payment)
+  prepUpdate                       PrepUpdate?                            @map("prep_update")
+  merchantId                       String                                 @map("merchant_id") @db.Uuid
+  customerId                       String?                                @map("customer_id") @db.Uuid
+  riderId                          String?                                @map("rider_id") @db.Uuid
+  groupCartId                      String?                                @map("group_cart_id") @db.Uuid
+  teamAccountId                    String?                                @map("team_account_id") @db.Uuid
+  subscriptionOrderId              String?                                @map("subscription_order_id") @db.Uuid
   /// AddressSnapshot from @ebalangay/shared; null for POS.
-  addressSnapshot       Json?                                  @map("address_snapshot")
-  dropoffLat            Float?                                 @map("dropoff_lat")
-  dropoffLng            Float?                                 @map("dropoff_lng")
-  dropoffLocation       Unsupported("geography(Point, 4326)")? @map("dropoff_location")
-  riderNotes            String?                                @map("rider_notes")
-  contactless           Boolean                                @default(false)
-  giftMessage           String?                                @map("gift_message")
-  recipientName         String?                                @map("recipient_name")
-  recipientPhone        String?                                @map("recipient_phone")
-  scheduledFor          DateTime?                              @map("scheduled_for") @db.Timestamptz(3)
-  notes                 String?
-  subtotalCentavos      BigInt                                 @map("subtotal_centavos")
-  deliveryFeeCentavos   BigInt                                 @default(0) @map("delivery_fee_centavos")
-  serviceFeeCentavos    BigInt                                 @default(0) @map("service_fee_centavos")
-  smallOrderFeeCentavos BigInt                                 @default(0) @map("small_order_fee_centavos")
-  discountCentavos      BigInt                                 @default(0) @map("discount_centavos")
-  tipCentavos           BigInt                                 @default(0) @map("tip_centavos")
-  totalCentavos         BigInt                                 @map("total_centavos")
-  commissionCentavos    BigInt                                 @default(0) @map("commission_centavos")
-  surgeBps              Int                                    @default(10000) @map("surge_bps")
-  paymentMethod         PaymentMethod                          @map("payment_method")
-  paymentStatus         PaymentStatus                          @default(pending) @map("payment_status")
-  voucherId             String?                                @map("voucher_id") @db.Uuid
-  pointsRedeemed        Int                                    @default(0) @map("points_redeemed")
-  etaAt                 DateTime?                              @map("eta_at") @db.Timestamptz(3)
-  placedAt              DateTime?                              @map("placed_at") @db.Timestamptz(3)
-  confirmedAt           DateTime?                              @map("confirmed_at") @db.Timestamptz(3)
-  readyAt               DateTime?                              @map("ready_at") @db.Timestamptz(3)
-  pickedUpAt            DateTime?                              @map("picked_up_at") @db.Timestamptz(3)
-  deliveredAt           DateTime?                              @map("delivered_at") @db.Timestamptz(3)
-  cancelledAt           DateTime?                              @map("cancelled_at") @db.Timestamptz(3)
-  cancelledBy           OrderActor?                            @map("cancelled_by")
-  cancelReason          String?                                @map("cancel_reason")
-  createdAt             DateTime                               @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt             DateTime                               @updatedAt @map("updated_at") @db.Timestamptz(3)
+  addressSnapshot                  Json?                                  @map("address_snapshot")
+  dropoffLat                       Float?                                 @map("dropoff_lat")
+  dropoffLng                       Float?                                 @map("dropoff_lng")
+  dropoffLocation                  Unsupported("geography(Point, 4326)")? @map("dropoff_location")
+  riderNotes                       String?                                @map("rider_notes")
+  contactless                      Boolean                                @default(false)
+  giftMessage                      String?                                @map("gift_message")
+  recipientName                    String?                                @map("recipient_name")
+  recipientPhone                   String?                                @map("recipient_phone")
+  scheduledFor                     DateTime?                              @map("scheduled_for") @db.Timestamptz(3)
+  notes                            String?
+  subtotalCentavos                 BigInt                                 @map("subtotal_centavos")
+  deliveryFeeCentavos              BigInt                                 @default(0) @map("delivery_fee_centavos")
+  serviceFeeCentavos               BigInt                                 @default(0) @map("service_fee_centavos")
+  smallOrderFeeCentavos            BigInt                                 @default(0) @map("small_order_fee_centavos")
+  discountCentavos                 BigInt                                 @default(0) @map("discount_centavos")
+  tipCentavos                      BigInt                                 @default(0) @map("tip_centavos")
+  donationCentavos                 BigInt                                 @default(0) @map("donation_centavos")
+  pointsValueCentavos              BigInt                                 @default(0) @map("points_value_centavos")
+  walletAppliedCentavos            BigInt                                 @default(0) @map("wallet_applied_centavos")
+  totalCentavos                    BigInt                                 @map("total_centavos")
+  commissionCentavos               BigInt                                 @default(0) @map("commission_centavos")
+  merchantNetCentavos              BigInt                                 @default(0) @map("merchant_net_centavos")
+  riderEarningCentavos             BigInt                                 @default(0) @map("rider_earning_centavos")
+  /// Cancellation Protection credit to the merchant.
+  cancellationCompensationCentavos BigInt                                 @default(0) @map("cancellation_compensation_centavos")
+  /// Client-supplied key; same key + customer returns the same order.
+  idempotencyKey                   String?                                @map("idempotency_key")
+  prepTimeMinutes                  Int?                                   @map("prep_time_minutes")
+  surgeBps                         Int                                    @default(10000) @map("surge_bps")
+  paymentMethod                    PaymentMethod                          @map("payment_method")
+  paymentStatus                    PaymentStatus                          @default(pending) @map("payment_status")
+  voucherId                        String?                                @map("voucher_id") @db.Uuid
+  pointsRedeemed                   Int                                    @default(0) @map("points_redeemed")
+  etaAt                            DateTime?                              @map("eta_at") @db.Timestamptz(3)
+  placedAt                         DateTime?                              @map("placed_at") @db.Timestamptz(3)
+  confirmedAt                      DateTime?                              @map("confirmed_at") @db.Timestamptz(3)
+  preparingAt                      DateTime?                              @map("preparing_at") @db.Timestamptz(3)
+  readyAt                          DateTime?                              @map("ready_at") @db.Timestamptz(3)
+  pickedUpAt                       DateTime?                              @map("picked_up_at") @db.Timestamptz(3)
+  deliveredAt                      DateTime?                              @map("delivered_at") @db.Timestamptz(3)
+  cancelledAt                      DateTime?                              @map("cancelled_at") @db.Timestamptz(3)
+  cancelledBy                      OrderActor?                            @map("cancelled_by")
+  cancelReason                     String?                                @map("cancel_reason")
+  createdAt                        DateTime                               @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt                        DateTime                               @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   merchant           Merchant             @relation(fields: [merchantId], references: [id], onDelete: Restrict)
   customer           User?                @relation("CustomerOrders", fields: [customerId], references: [id], onDelete: SetNull)
@@ -76,7 +87,9 @@ model Order {
   settlementItems    SettlementItem[]
   donations          Donation[]
 
+  @@unique([customerId, idempotencyKey])
   @@index([merchantId, status, createdAt])
+  @@index([merchantId, placedAt])
   @@index([customerId, createdAt])
   @@index([riderId, status])
   @@index([status, createdAt])
