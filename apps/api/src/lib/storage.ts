@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import {
+  DeleteObjectsCommand,
   GetObjectCommand,
   HeadObjectCommand,
   PutObjectCommand,
@@ -42,6 +43,8 @@ export interface Storage {
   /** Null when the object doesn't exist (e.g. the client never finished uploading). */
   head(bucket: BucketKind, key: string): Promise<StoredObject | null>;
   put(bucket: BucketKind, key: string, body: Buffer, contentType: string): Promise<void>;
+  /** Best-effort removal; missing keys are ignored. */
+  remove(bucket: BucketKind, keys: string[]): Promise<void>;
   publicUrl(key: string): string;
 }
 
@@ -130,6 +133,16 @@ class R2Storage implements Storage {
     );
   }
 
+  async remove(bucket: BucketKind, keys: string[]): Promise<void> {
+    if (!keys.length) return;
+    await this.s3.send(
+      new DeleteObjectsCommand({
+        Bucket: this.buckets[bucket],
+        Delete: { Objects: keys.map((Key) => ({ Key })), Quiet: true },
+      }),
+    );
+  }
+
   publicUrl(key: string): string {
     return `${this.env.R2_PUBLIC_BASE_URL}/${key}`;
   }
@@ -171,6 +184,10 @@ export class MemoryStorage implements Storage {
 
   async put(bucket: BucketKind, key: string, body: Buffer, contentType: string): Promise<void> {
     this.objects.set(`${bucket}/${key}`, { body, contentType });
+  }
+
+  async remove(bucket: BucketKind, keys: string[]): Promise<void> {
+    for (const key of keys) this.objects.delete(`${bucket}/${key}`);
   }
 
   publicUrl(key: string): string {

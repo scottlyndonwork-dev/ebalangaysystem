@@ -9,6 +9,7 @@ import { serializerCompiler, validatorCompiler } from './lib/zod-provider.js';
 import { adminRoutes } from './modules/admin/routes.js';
 import { authRoutes } from './modules/auth/routes.js';
 import { healthRoutes } from './modules/health/routes.js';
+import { catalogRoutes } from './modules/catalog/routes.js';
 import { merchantRoutes } from './modules/merchants/routes.js';
 import { meStoreRoutes, storeRoutes } from './modules/stores/routes.js';
 import { meRoutes } from './modules/users/routes.js';
@@ -100,6 +101,7 @@ export async function buildApp({
   await app.register(meRoutes, { prefix: '/v1/me' });
   await app.register(meStoreRoutes, { prefix: '/v1/me' });
   await app.register(merchantRoutes, { prefix: '/v1/merchants' });
+  await app.register(catalogRoutes, { prefix: '/v1/merchants' });
   await app.register(storeRoutes, { prefix: '/v1/stores' });
   await app.register(adminRoutes, { prefix: '/v1/admin' });
 
