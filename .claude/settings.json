@@ -1,0 +1,37 @@
+{
+  "permissions": {
+    "defaultMode": "acceptEdits",
+    "allow": [
+      "Bash(pnpm install:*)",
+      "Bash(pnpm add:*)",
+      "Bash(pnpm turbo:*)",
+      "Bash(pnpm dev:*)",
+      "Bash(pnpm test:*)",
+      "Bash(pnpm lint:*)",
+      "Bash(pnpm typecheck:*)",
+      "Bash(pnpm build:*)",
+      "Bash(pnpm --filter:*)",
+      "Bash(npx prisma generate:*)",
+      "Bash(npx prisma validate:*)",
+      "Bash(npx prisma format:*)",
+      "Bash(npx expo:*)",
+      "Bash(node:*)"
+    ],
+    "deny": [
+      "Bash(npx prisma migrate reset:*)",
+      "Bash(rm -rf:*)",
+      "Bash(railway:*)",
+      "Bash(vercel --prod:*)",
+      "Bash(eas submit:*)",
+      "Bash(git push:*)",
+      "Read(./.env)",
+      "Read(./**/.env)",
+      "Read(./**/node_modules/**)",
+      "Read(./**/dist/**)",
+      "Read(./**/.next/**)",
+      "Read(./**/.turbo/**)",
+      "Read(./**/.expo/**)",
+      "Read(./pnpm-lock.yaml)"
+    ]
+  }
+}

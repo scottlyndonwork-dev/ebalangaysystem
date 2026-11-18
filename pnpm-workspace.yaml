@@ -6,3 +6,7 @@ onlyBuiltDependencies:
   - '@prisma/engines'
   - prisma
   - esbuild
+# One React across the monorepo (Expo SDK 58 pins 19.3.0); duplicates break hooks.
+overrides:
+  react: 19.3.0
+  react-dom: 19.3.0

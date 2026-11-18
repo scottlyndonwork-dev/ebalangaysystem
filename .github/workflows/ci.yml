@@ -1,0 +1,65 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgis/postgis:17-3.5
+        env:
+          POSTGRES_USER: ebalangay
+          POSTGRES_PASSWORD: ebalangay
+          POSTGRES_DB: ebalangay_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U ebalangay" --health-interval 5s --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7
+        ports: ['6379:6379']
+        options: --health-cmd "redis-cli ping" --health-interval 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://ebalangay:ebalangay@localhost:5432/ebalangay_test
+      TEST_DATABASE_URL: postgresql://ebalangay:ebalangay@localhost:5432/ebalangay_test
+      REDIS_URL: redis://localhost:6379/0
+      TEST_REDIS_URL: redis://localhost:6379/1
+      TURBO_TELEMETRY_DISABLED: 1
+      # On PRs only affected packages run; on main everything runs.
+      TURBO_FILTER: ${{ github.event_name == 'pull_request' && '--filter=...[origin/main]' || '' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Enable PostGIS + pg_trgm
+        run: >-
+          psql "$TEST_DATABASE_URL" -c "CREATE EXTENSION IF NOT EXISTS postgis;"
+          -c "CREATE EXTENSION IF NOT EXISTS pg_trgm;"
+
+      - name: Apply migrations to test DB
+        run: pnpm --filter @ebalangay/api exec prisma migrate deploy
+
+      - name: Lint, typecheck, test
+        run: pnpm turbo run lint typecheck test $TURBO_FILTER
+
+      - name: Prettier
+        run: pnpm format:check

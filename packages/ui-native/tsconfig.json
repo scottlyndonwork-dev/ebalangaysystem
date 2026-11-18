@@ -1,0 +1,16 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "dist",
+    "rootDir": "src",
+    "jsx": "react-jsx",
+    "lib": ["ES2022"],
+    "types": [],
+    // Consumed only through Metro, so resolve like a bundler.
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    // RN 0.88 strict types are type aliases that NativeWind cannot augment with className.
+    "customConditions": ["react-native-legacy-deep-imports"]
+  },
+  "include": ["src"]
+}

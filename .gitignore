@@ -13,3 +13,6 @@ coverage/
 
 # generated
 apps/api/src/generated/
+*.tsbuildinfo
+next-env.d.ts
+.vercel/

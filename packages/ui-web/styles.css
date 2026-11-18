@@ -1,0 +1,111 @@
+/*
+ * eBalangay web theme (Tailwind CSS v4). In an app's globals.css:
+ *   @import "tailwindcss";
+ *   @import "@ebalangay/ui-web/styles.css";
+ *   @source "../../node_modules/@ebalangay/ui-web/dist";
+ * Values mirror packages/shared/src/design/tokens.ts (a test keeps them in sync).
+ */
+@import 'tw-animate-css';
+@import 'react-day-picker/style.css';
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  --background: #ffffff;
+  --surface: #f7f8f8;
+  --surface-muted: #eef0f0;
+  --border: #dde1e1;
+  --text: #161919;
+  --text-muted: #6f7979;
+  --primary: #1d9e75;
+  --primary-foreground: #ffffff;
+  --primary-soft: #e1f5ee;
+  --accent: #ba7517;
+  --accent-soft: #faeeda;
+  --danger: #d93a3a;
+  --danger-soft: #fdecec;
+  --info: #2f74d0;
+  --info-soft: #e8f1fc;
+  --focus: #5dcaa5;
+  --radius: 10px;
+}
+
+.dark {
+  --background: #0c0e0e;
+  --surface: #161919;
+  --surface-muted: #252a2a;
+  --border: #3b4242;
+  --text: #f7f8f8;
+  --text-muted: #9aa3a3;
+  --primary: #5dcaa5;
+  --primary-foreground: #085041;
+  --primary-soft: #085041;
+  --accent: #faeeda;
+  --accent-soft: #8a560f;
+  --danger: #d93a3a;
+  --danger-soft: #a62828;
+  --info: #2f74d0;
+  --info-soft: #1f519a;
+  --focus: #5dcaa5;
+}
+
+@theme inline {
+  /* shadcn/ui semantic names */
+  --color-background: var(--background);
+  --color-foreground: var(--text);
+  --color-card: var(--background);
+  --color-card-foreground: var(--text);
+  --color-popover: var(--background);
+  --color-popover-foreground: var(--text);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary-soft: var(--primary-soft);
+  --color-secondary: var(--primary-soft);
+  --color-secondary-foreground: var(--text);
+  --color-muted: var(--surface-muted);
+  --color-muted-foreground: var(--text-muted);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-destructive: var(--danger);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+  --color-surface: var(--surface);
+  --color-border: var(--border);
+  --color-input: var(--border);
+  --color-ring: var(--focus);
+  --radius-sm: 6px;
+  --radius-md: var(--radius);
+  --radius-lg: 14px;
+  --radius-xl: 20px;
+}
+
+@theme {
+  --color-brand-50: #e1f5ee;
+  --color-brand-300: #5dcaa5;
+  --color-brand-500: #1d9e75;
+  --color-brand-600: #178462;
+  --color-brand-800: #085041;
+  --color-amber-50: #faeeda;
+  --color-amber-500: #ba7517;
+  --color-amber-700: #8a560f;
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+  body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-ring);
+    outline-offset: 2px;
+  }
+  .rdp-root {
+    --rdp-accent-color: var(--color-primary);
+    --rdp-accent-background-color: var(--color-primary-soft);
+  }
+}

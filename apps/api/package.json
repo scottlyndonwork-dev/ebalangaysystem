@@ -8,11 +8,12 @@
     "build": "tsc -p tsconfig.build.json",
     "start": "node dist/server.js",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint src test",
+    "lint": "eslint src test scripts prisma",
     "test": "vitest run --reporter=dot",
     "prisma:validate": "prisma validate",
     "prisma:format": "prisma format",
-    "db:generate": "prisma generate"
+    "db:generate": "prisma generate",
+    "db:test:reset": "node scripts/db-test-reset.mjs"
   },
   "dependencies": {
     "@ebalangay/shared": "workspace:*",

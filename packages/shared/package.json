@@ -9,6 +9,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./design": {
+      "types": "./dist/design/index.d.ts",
+      "default": "./dist/design/index.js"
     }
   },
   "files": [
@@ -18,7 +22,7 @@
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src",
-    "test": "vitest run --reporter=dot"
+    "test": "vitest run --reporter=dot --coverage"
   },
   "dependencies": {
     "zod": "^4.6.7"
