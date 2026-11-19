@@ -1,5 +1,6 @@
 import { createAdapter } from '@socket.io/redis-adapter';
 import {
+  isTerminalStatus,
   parseRoom,
   roomCommandSchema,
   Rooms,
@@ -11,7 +12,13 @@ import { Server } from 'socket.io';
 import type { AccessClaims, AuthContext, MfaClaims } from './auth.js';
 import { ACCESS_COOKIE } from './auth.js';
 
-export type SocketAuth = Omit<AuthContext, 'via'>;
+export type SocketAuth = Omit<AuthContext, 'via'> & {
+  /** Access-token expiry (epoch seconds); the socket is dropped then and must reconnect. */
+  exp: number;
+};
+
+/** Upper bound on rooms one socket may hold (its own user room included). */
+export const MAX_ROOMS_PER_SOCKET = 50;
 
 /** Verifies the handshake token (auth.token for mobile, the access cookie for web). */
 export function authenticateSocketToken(
@@ -26,10 +33,43 @@ export function authenticateSocketToken(
     throw new Error('UNAUTHENTICATED');
   }
   if (claims.typ !== 'access') throw new Error('UNAUTHENTICATED');
-  return { userId: claims.sub, roles: claims.roles, app: claims.app, sessionId: claims.sid };
+  const exp = (claims as { exp?: number }).exp;
+  if (typeof exp !== 'number') throw new Error('UNAUTHENTICATED');
+  return { userId: claims.sub, roles: claims.roles, app: claims.app, sessionId: claims.sid, exp };
 }
 
-/** Room joins are authorised server-side; clients can only ask. */
+const isMerchantApp = (auth: SocketAuth) => auth.app === 'merchant' || auth.app === 'merchant-web';
+
+function isAdmin(app: FastifyInstance, auth: SocketAuth, ip: string): boolean {
+  return (
+    auth.app === 'admin-web' &&
+    (auth.roles.includes('admin') || auth.roles.includes('super_admin')) &&
+    app.isAdminIpAllowed(ip)
+  );
+}
+
+async function isActiveStaff(app: FastifyInstance, merchantId: string, userId: string) {
+  const staff = await app.db.merchantStaff.findUnique({
+    where: { merchantId_userId: { merchantId, userId } },
+    select: { isActive: true },
+  });
+  return staff?.isActive === true;
+}
+
+/** The caller's rider profile, only when using the rider app with an approved account. */
+async function approvedRiderId(app: FastifyInstance, auth: SocketAuth): Promise<string | null> {
+  if (auth.app !== 'rider') return null;
+  const rider = await app.db.rider.findUnique({
+    where: { userId: auth.userId },
+    select: { id: true, verificationStatus: true },
+  });
+  return rider?.verificationStatus === 'approved' ? rider.id : null;
+}
+
+/**
+ * Room joins are authorised server-side; clients can only ask. Checks hit the DB fresh, so
+ * revoked staff/rider access stops new joins at once (existing sockets drop at token expiry).
+ */
 export async function canJoinRoom(
   app: FastifyInstance,
   auth: SocketAuth,
@@ -43,19 +83,9 @@ export async function canJoinRoom(
     case 'user':
       return id === auth.userId;
     case 'admin':
-      return (
-        auth.app === 'admin-web' &&
-        (auth.roles.includes('admin') || auth.roles.includes('super_admin')) &&
-        app.isAdminIpAllowed(ip)
-      );
-    case 'merchant': {
-      if (!id || (auth.app !== 'merchant' && auth.app !== 'merchant-web')) return false;
-      const staff = await app.db.merchantStaff.findUnique({
-        where: { merchantId_userId: { merchantId: id, userId: auth.userId } },
-        select: { isActive: true },
-      });
-      return staff?.isActive === true;
-    }
+      return isAdmin(app, auth, ip);
+    case 'merchant':
+      return !!id && isMerchantApp(auth) && isActiveStaff(app, id, auth.userId);
     case 'rider': {
       if (!id || auth.app !== 'rider') return false;
       const rider = await app.db.rider.findUnique({ where: { id }, select: { userId: true } });
@@ -65,21 +95,29 @@ export async function canJoinRoom(
       if (!id) return false;
       const order = await app.db.order.findUnique({
         where: { id },
-        select: { customerId: true, merchantId: true },
+        select: { customerId: true, merchantId: true, riderId: true, status: true },
       });
       if (!order) return false;
-      if (order.customerId === auth.userId) return true;
-      if (auth.app !== 'merchant' && auth.app !== 'merchant-web') return false;
-      const staff = await app.db.merchantStaff.findUnique({
-        where: { merchantId_userId: { merchantId: order.merchantId, userId: auth.userId } },
-        select: { isActive: true },
-      });
-      // Assigned riders join through the delivery flow (realtime phase).
-      return staff?.isActive === true;
+      if (auth.app === 'customer') return order.customerId === auth.userId;
+      if (isMerchantApp(auth)) return isActiveStaff(app, order.merchantId, auth.userId);
+      if (auth.app === 'rider') {
+        // Only the assigned rider, and only while the job is live.
+        if (!order.riderId || isTerminalStatus(order.status)) return false;
+        return (await approvedRiderId(app, auth)) === order.riderId;
+      }
+      return isAdmin(app, auth, ip);
     }
-    default:
-      // Zone rooms open up with rider dispatch in the realtime phase.
-      return false;
+    case 'zone': {
+      if (!id) return false;
+      if (auth.app === 'admin-web') return isAdmin(app, auth, ip);
+      const riderId = await approvedRiderId(app, auth);
+      if (!riderId) return false;
+      const link = await app.db.riderZone.findUnique({
+        where: { riderId_zoneId: { riderId, zoneId: id } },
+        select: { riderId: true },
+      });
+      return !!link;
+    }
   }
 }
 
@@ -141,17 +179,43 @@ export function attachRealtime(app: FastifyInstance): Server {
   io.on('connection', (socket) => {
     const auth = socket.data.auth as SocketAuth;
     void socket.join(Rooms.user(auth.userId));
+    // Stateless JWTs can't be revoked mid-connection, so the socket lives no longer than its
+    // token; the client reconnects with a fresh one and re-joins (and refetches).
+    const expiry = setTimeout(
+      () => socket.disconnect(true),
+      Math.max(0, auth.exp * 1000 - Date.now()),
+    );
+    socket.on('disconnect', () => clearTimeout(expiry));
+    // Joins awaiting their DB check hold a slot, so concurrent requests can't overshoot the cap.
+    let pendingJoins = 0;
+
     socket.on(SocketCommand.JOIN, async (payload: unknown, ack?: (a: RoomAck) => void) => {
       const parsed = roomCommandSchema.safeParse(payload);
-      const ok =
-        parsed.success &&
-        (await canJoinRoom(app, auth, parsed.data.room, socketIp(app, socket.handshake)));
-      if (ok) await socket.join(parsed.data.room);
+      if (!parsed.success) return ack?.({ ok: false, error: 'VALIDATION_FAILED' });
+      const { room } = parsed.data;
+      if (socket.rooms.has(room)) return ack?.({ ok: true });
+      // socket.rooms also holds the socket's private id room.
+      if (socket.rooms.size - 1 + pendingJoins >= MAX_ROOMS_PER_SOCKET) {
+        return ack?.({ ok: false, error: 'TOO_MANY_ROOMS' });
+      }
+      let ok = false;
+      pendingJoins++;
+      try {
+        ok = await canJoinRoom(app, auth, room, socketIp(app, socket.handshake));
+      } catch (err) {
+        app.log.error({ err, room }, 'socket room check failed');
+      } finally {
+        pendingJoins--;
+      }
+      if (ok && socket.connected) await socket.join(room);
       ack?.(ok ? { ok: true } : { ok: false, error: 'FORBIDDEN' });
     });
     socket.on(SocketCommand.LEAVE, async (payload: unknown, ack?: (a: RoomAck) => void) => {
       const parsed = roomCommandSchema.safeParse(payload);
-      if (parsed.success) await socket.leave(parsed.data.room);
+      // The user room is permanent: user-targeted events must always arrive.
+      if (parsed.success && parsed.data.room !== Rooms.user(auth.userId)) {
+        await socket.leave(parsed.data.room);
+      }
       ack?.({ ok: parsed.success });
     });
   });

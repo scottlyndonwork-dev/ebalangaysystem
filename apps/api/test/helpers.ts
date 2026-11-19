@@ -1,12 +1,14 @@
 import { randomInt } from 'node:crypto';
 import { verifyOtpResponseSchema } from '@ebalangay/shared';
 import type { FastifyInstance } from 'fastify';
+import type { Server as IoServer } from 'socket.io';
 import request from 'supertest';
 import { buildApp } from '../src/app.js';
 import { createDb, type Db } from '../src/db.js';
 import { type Env, type EnvInput, loadEnv } from '../src/env.js';
 import { MemorySms } from '../src/lib/sms.js';
 import { MemoryStorage } from '../src/lib/storage.js';
+import { attachRealtime } from '../src/plugins/socket.js';
 import { createRedis, type RedisClient } from '../src/redis.js';
 
 /** Fixed, non-secret values so tests and CI need no real secrets. */
@@ -33,9 +35,11 @@ export function testEnv(overrides: EnvInput = {}): Env {
 }
 
 export async function buildTestApp(
-  opts: { db?: Db; redis?: RedisClient; env?: EnvInput } = {},
+  opts: { db?: Db; redis?: RedisClient; env?: EnvInput; realtime?: boolean } = {},
 ): Promise<{
   app: FastifyInstance;
+  /** Socket.IO server, only with `realtime: true`. */
+  io: IoServer | null;
   sms: MemorySms;
   storage: MemoryStorage;
   close: () => Promise<void>;
@@ -47,9 +51,11 @@ export async function buildTestApp(
   const sms = new MemorySms();
   const storage = new MemoryStorage();
   const app = await buildApp({ env, db, redis, sms, storage });
+  const io = opts.realtime ? attachRealtime(app) : null;
   await app.ready();
   return {
     app,
+    io,
     sms,
     storage,
     close: async () => {
