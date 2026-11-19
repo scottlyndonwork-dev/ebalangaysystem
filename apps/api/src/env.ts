@@ -26,6 +26,8 @@ const envSchema = z
       .default('info'),
     DATABASE_URL: z.url(),
     REDIS_URL: z.url().default('redis://localhost:6379'),
+    /** Outbox relay tick (worker process). Bounds socket latency after a commit. */
+    OUTBOX_POLL_MS: z.coerce.number().int().min(100).max(10_000).default(500),
     SENTRY_DSN: z.preprocess((v) => (v === '' ? undefined : v), z.url().optional()),
     /** Mobile apps below this X-App-Version get 426 UPGRADE_REQUIRED. */
     MIN_APP_VERSION: appVersionSchema.default('0.0.0'),

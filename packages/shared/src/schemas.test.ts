@@ -70,6 +70,7 @@ describe('socket contract', () => {
   it('has a payload schema for every event, wrapped in the envelope', () => {
     expect(Object.keys(socketEventSchemas).sort()).toEqual(Object.values(SocketEvent).sort());
     const ok = socketEventSchemas['order.updated'].safeParse({
+      eventId: id,
       id,
       version: 3,
       occurredAt: '2026-11-18T03:00:00.000Z',

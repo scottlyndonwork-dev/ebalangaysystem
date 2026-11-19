@@ -10,6 +10,7 @@ import { MemorySms } from '../src/lib/sms.js';
 import { MemoryStorage } from '../src/lib/storage.js';
 import { attachRealtime } from '../src/plugins/socket.js';
 import { createRedis, type RedisClient } from '../src/redis.js';
+import type { Queues } from '../src/workers/queues.js';
 
 /** Fixed, non-secret values so tests and CI need no real secrets. */
 const TEST_SECRETS = {
@@ -35,7 +36,7 @@ export function testEnv(overrides: EnvInput = {}): Env {
 }
 
 export async function buildTestApp(
-  opts: { db?: Db; redis?: RedisClient; env?: EnvInput; realtime?: boolean } = {},
+  opts: { db?: Db; redis?: RedisClient; env?: EnvInput; realtime?: boolean; queues?: Queues } = {},
 ): Promise<{
   app: FastifyInstance;
   /** Socket.IO server, only with `realtime: true`. */
@@ -50,7 +51,7 @@ export async function buildTestApp(
   if (!opts.redis) await redis.connect();
   const sms = new MemorySms();
   const storage = new MemoryStorage();
-  const app = await buildApp({ env, db, redis, sms, storage });
+  const app = await buildApp({ env, db, redis, sms, storage, queues: opts.queues });
   const io = opts.realtime ? attachRealtime(app) : null;
   await app.ready();
   return {

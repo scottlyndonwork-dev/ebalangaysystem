@@ -23,12 +23,14 @@ import { riderOrderRoutes } from './modules/orders/rider-routes.js';
 import { orderRoutes } from './modules/orders/routes.js';
 import { registerAppVersionCheck } from './plugins/app-version.js';
 import { authPlugin } from './plugins/auth.js';
+import { BULL_BOARD_PATH, bullBoardPlugin } from './plugins/bull-board.js';
 import { registerErrorHandling } from './plugins/errors.js';
 import { infraPlugin } from './plugins/infra.js';
 import { rateLimitPlugin } from './plugins/rate-limit.js';
 import { securityPlugin } from './plugins/security.js';
 import { swaggerPlugin } from './plugins/swagger.js';
 import type { RedisClient } from './redis.js';
+import type { Queues } from './workers/queues.js';
 
 export { API_VERSION } from './version.js';
 
@@ -40,6 +42,8 @@ export interface AppDeps {
   sms?: SmsSender;
   /** Defaults to the driver selected by STORAGE_DRIVER. Tests pass a MemoryStorage. */
   storage?: Storage;
+  /** BullMQ queues; when given, Bull Board is mounted at /v1/admin/queues. */
+  queues?: Queues;
 }
 
 /** Never log secrets: tokens, OTP codes, passwords, TOTP codes, card data. */
@@ -65,6 +69,7 @@ export async function buildApp({
   redis,
   sms,
   storage,
+  queues,
 }: AppDeps): Promise<FastifyInstance> {
   const app = Fastify({
     logger: {
@@ -120,6 +125,7 @@ export async function buildApp({
   await app.register(merchantOrderRoutes, { prefix: '/v1/merchants' });
   await app.register(riderOrderRoutes, { prefix: '/v1/rider/orders' });
   await app.register(adminRoutes, { prefix: '/v1/admin' });
+  if (queues) await app.register(bullBoardPlugin, { prefix: BULL_BOARD_PATH, queues });
 
   return app;
 }

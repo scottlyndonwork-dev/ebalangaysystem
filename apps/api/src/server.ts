@@ -4,6 +4,7 @@ import { loadEnv } from './env.js';
 import { initSentry } from './plugins/sentry.js';
 import { attachRealtime } from './plugins/socket.js';
 import { createRedis } from './redis.js';
+import { bullConnection, closeQueues, createQueues } from './workers/queues.js';
 
 const env = loadEnv();
 initSentry(env);
@@ -19,7 +20,9 @@ try {
 }
 
 const redis = createRedis(env.REDIS_URL);
-const app = await buildApp({ env, db, redis });
+// Only for Bull Board here; jobs run in the worker process (src/workers).
+const queues = createQueues(bullConnection(env.REDIS_URL));
+const app = await buildApp({ env, db, redis, queues });
 attachRealtime(app);
 redis.on('error', (err) => app.log.error({ err }, 'redis error'));
 await redis.connect().catch((err: unknown) => app.log.error({ err }, 'redis connect failed'));
@@ -27,7 +30,7 @@ await redis.connect().catch((err: unknown) => app.log.error({ err }, 'redis conn
 const shutdown = async (signal: string) => {
   app.log.info({ signal }, 'shutting down');
   await app.close();
-  await Promise.allSettled([db.$disconnect(), redis.quit()]);
+  await Promise.allSettled([db.$disconnect(), redis.quit(), closeQueues(queues)]);
   process.exit(0);
 };
 process.on('SIGINT', () => void shutdown('SIGINT'));

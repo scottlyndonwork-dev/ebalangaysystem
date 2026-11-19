@@ -185,6 +185,7 @@ describe('helpers', () => {
 
 describe('socket helpers', () => {
   const payload = {
+    eventId: id,
     id,
     version: 2,
     occurredAt: '2026-11-18T03:00:00.000Z',

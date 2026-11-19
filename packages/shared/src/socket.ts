@@ -36,6 +36,10 @@ export type RoomAck = z.infer<typeof roomAckSchema>;
 /** Every server -> client payload: entity id, entity version, when, and event data. */
 export const socketEnvelope = <T extends z.ZodType>(data: T) =>
   z.object({
+    /**
+     * Id of this event (the outbox row). Delivery is at-least-once: ignore ids you have seen.
+     */
+    eventId: idSchema,
     /** Id of the entity the event is about (order id, rider id, ...). */
     id: idSchema,
     /** Entity version after the change; drop events older than what you have. */
