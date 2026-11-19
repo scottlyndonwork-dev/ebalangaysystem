@@ -23,13 +23,18 @@ model Order {
   giftMessage                      String?                                @map("gift_message")
   recipientName                    String?                                @map("recipient_name")
   recipientPhone                   String?                                @map("recipient_phone")
+  /// Gift orders: hide prices from the recipient (receipt, rider app).
+  giftHidePrices                   Boolean                                @default(false) @map("gift_hide_prices")
   scheduledFor                     DateTime?                              @map("scheduled_for") @db.Timestamptz(3)
   notes                            String?
   subtotalCentavos                 BigInt                                 @map("subtotal_centavos")
   deliveryFeeCentavos              BigInt                                 @default(0) @map("delivery_fee_centavos")
   serviceFeeCentavos               BigInt                                 @default(0) @map("service_fee_centavos")
   smallOrderFeeCentavos            BigInt                                 @default(0) @map("small_order_fee_centavos")
+  /// All discounts (item + delivery), as in PriceBreakdown.
   discountCentavos                 BigInt                                 @default(0) @map("discount_centavos")
+  /// Free-delivery part of discountCentavos.
+  deliveryDiscountCentavos         BigInt                                 @default(0) @map("delivery_discount_centavos")
   tipCentavos                      BigInt                                 @default(0) @map("tip_centavos")
   donationCentavos                 BigInt                                 @default(0) @map("donation_centavos")
   pointsValueCentavos              BigInt                                 @default(0) @map("points_value_centavos")

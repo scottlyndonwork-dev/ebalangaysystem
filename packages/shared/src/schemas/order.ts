@@ -1,5 +1,7 @@
 import { z } from 'zod';
 import {
+  type ValueOf,
+  zEnum,
   orderStatusSchema,
   orderTypeSchema,
   paymentMethodSchema,
@@ -30,6 +32,8 @@ export const orderItemSchema = z.object({
   modifiers: z.array(z.object({ name: z.string(), priceDeltaCentavos: centavosSchema })),
   lineTotalCentavos: nonNegativeCentavosSchema,
   notes: z.string().nullable(),
+  /** Set when the customer rejected a replacement for this item; excluded from totals. */
+  removedAt: timestampSchema.nullable(),
 });
 export type OrderItem = z.infer<typeof orderItemSchema>;
 
@@ -40,6 +44,28 @@ export const giftDetailsSchema = z.object({
   hidePrices: z.boolean(),
 });
 export type GiftDetails = z.infer<typeof giftDetailsSchema>;
+
+export const ReplacementStatus = {
+  PROPOSED: 'proposed',
+  ACCEPTED: 'accepted',
+  REJECTED: 'rejected',
+} as const;
+export type ReplacementStatus = ValueOf<typeof ReplacementStatus>;
+export const replacementStatusSchema = zEnum(ReplacementStatus);
+
+/** Merchant's substitute for an out-of-stock item; the customer accepts or rejects it. */
+export const orderReplacementSchema = z.object({
+  id: idSchema,
+  orderItemId: idSchema,
+  productId: idSchema.nullable(),
+  name: z.string(),
+  unitPriceCentavos: nonNegativeCentavosSchema,
+  quantity: z.number().int().min(1),
+  status: replacementStatusSchema,
+  respondedAt: timestampSchema.nullable(),
+  createdAt: timestampSchema,
+});
+export type OrderReplacement = z.infer<typeof orderReplacementSchema>;
 
 export const orderSchema = z.object({
   id: idSchema,
@@ -65,6 +91,9 @@ export const orderSchema = z.object({
   scheduledFor: timestampSchema.nullable(),
   notes: z.string().nullable(),
   etaAt: timestampSchema.nullable(),
+  /** Merchant's promised prep time, set on accept. */
+  prepTimeMinutes: z.number().int().positive().nullable(),
+  replacements: z.array(orderReplacementSchema),
   placedAt: timestampSchema.nullable(),
   deliveredAt: timestampSchema.nullable(),
   cancelledAt: timestampSchema.nullable(),
@@ -73,6 +102,17 @@ export const orderSchema = z.object({
   updatedAt: timestampSchema,
 });
 export type Order = z.infer<typeof orderSchema>;
+
+/** Merchant-app view: adds the customer's name and the money split. */
+export const merchantOrderSchema = orderSchema.extend({
+  customerName: z.string().nullable(),
+  commissionCentavos: centavosSchema,
+  /** May be negative (e.g. merchant-funded free delivery on a tiny order). */
+  merchantNetCentavos: centavosSchema,
+  /** Cancellation Protection credit when the customer cancelled after preparation started. */
+  cancellationCompensationCentavos: nonNegativeCentavosSchema,
+});
+export type MerchantOrder = z.infer<typeof merchantOrderSchema>;
 
 export const orderStatusEventSchema = z.object({
   id: idSchema,
@@ -98,6 +138,7 @@ export const createOrderInputSchema = z
     scheduledFor: timestampSchema.nullable().default(null),
     gift: giftDetailsSchema.nullable().default(null),
     usePoints: z.number().int().nonnegative().default(0),
+    roundUpDonation: z.boolean().default(false),
   })
   .refine((o) => o.type !== 'scheduled' || o.scheduledFor !== null, {
     message: 'scheduledFor is required for scheduled orders',
@@ -148,6 +189,49 @@ export const cancelOrderInputSchema = z.object({
 });
 export type CancelOrderInput = z.infer<typeof cancelOrderInputSchema>;
 
+/** Merchant reject uses the same shape as cancel. */
+export const rejectOrderInputSchema = cancelOrderInputSchema;
+export type RejectOrderInput = CancelOrderInput;
+
+export const acceptOrderInputSchema = z.object({
+  version: z.number().int().nonnegative(),
+  /** Defaults to the suggested prep time. */
+  prepTimeMinutes: z.number().int().min(1).max(240).optional(),
+});
+export type AcceptOrderInput = z.infer<typeof acceptOrderInputSchema>;
+
+export const prepSuggestionSchema = z.object({
+  minutes: z.number().int().positive(),
+  /** False when there is too little history and the store's default prep time is used. */
+  basedOnHistory: z.boolean(),
+});
+export type PrepSuggestion = z.infer<typeof prepSuggestionSchema>;
+
+export const proposeReplacementInputSchema = z.object({
+  orderItemId: idSchema,
+  productId: idSchema,
+  variantId: idSchema.nullable().default(null),
+  /** Defaults to the original item's quantity. */
+  quantity: z.number().int().min(1).max(999).optional(),
+});
+export type ProposeReplacementInput = z.input<typeof proposeReplacementInputSchema>;
+
+export const respondReplacementInputSchema = z.object({ accept: z.boolean() });
+export type RespondReplacementInput = z.infer<typeof respondReplacementInputSchema>;
+
+export const customerBlockSchema = z.object({
+  userId: idSchema,
+  reason: z.string().nullable(),
+  createdAt: timestampSchema,
+});
+export type CustomerBlock = z.infer<typeof customerBlockSchema>;
+
+export const blockCustomerInputSchema = z.object({
+  userId: idSchema,
+  reason: z.string().trim().max(300).nullable().default(null),
+});
+export type BlockCustomerInput = z.input<typeof blockCustomerInputSchema>;
+
 export const listOrdersQuerySchema = cursorPageQuerySchema.extend({
   status: z
     .union([orderStatusSchema, z.array(orderStatusSchema)])
@@ -159,9 +243,15 @@ export const listOrdersQuerySchema = cursorPageQuerySchema.extend({
 });
 export type ListOrdersQuery = z.input<typeof listOrdersQuerySchema>;
 
+/** Order chat has two conversations: customer<->store and customer<->rider. */
+export const ChatChannel = { MERCHANT: 'merchant', RIDER: 'rider' } as const;
+export type ChatChannel = ValueOf<typeof ChatChannel>;
+export const chatChannelSchema = zEnum(ChatChannel);
+
 export const orderChatMessageSchema = z.object({
   id: idSchema,
   orderId: idSchema,
+  channel: chatChannelSchema,
   senderId: idSchema,
   senderRole: userRoleSchema,
   body: z.string().min(1).max(1000),
@@ -170,8 +260,11 @@ export const orderChatMessageSchema = z.object({
 });
 export type OrderChatMessage = z.infer<typeof orderChatMessageSchema>;
 
+export const chatQuerySchema = cursorPageQuerySchema.extend({ channel: chatChannelSchema });
+export type ChatQuery = z.input<typeof chatQuerySchema>;
+
 export const sendChatMessageInputSchema = z.object({
+  channel: chatChannelSchema,
   body: z.string().trim().min(1).max(1000),
-  imageFileKey: z.string().max(512).optional(),
 });
 export type SendChatMessageInput = z.infer<typeof sendChatMessageInputSchema>;

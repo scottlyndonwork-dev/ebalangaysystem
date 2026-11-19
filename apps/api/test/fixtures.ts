@@ -235,5 +235,20 @@ export function fixtures(getCtx: () => Ctx) {
     });
   }
 
-  return { center, zone, user, store, product, customer, farAddress, tokenFor };
+  /** Approved rider working the fixture zone. */
+  async function rider() {
+    const u = await user(['rider']);
+    const r = await db().rider.create({
+      data: {
+        userId: u.id,
+        vehicleType: 'motorcycle',
+        verificationStatus: 'approved',
+        status: 'online',
+        zones: { create: { zoneId, isPrimary: true } },
+      },
+    });
+    return { riderId: r.id, userId: u.id, token: tokenFor(u.id, ['rider'], 'rider') };
+  }
+
+  return { center, zone, user, store, product, customer, farAddress, rider, tokenFor };
 }

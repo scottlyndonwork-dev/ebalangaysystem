@@ -17,6 +17,10 @@ import { cartRoutes } from './modules/carts/routes.js';
 import { merchantRoutes } from './modules/merchants/routes.js';
 import { meStoreRoutes, storeRoutes } from './modules/stores/routes.js';
 import { meRoutes } from './modules/users/routes.js';
+import { orderChatRoutes } from './modules/orders/chat.js';
+import { merchantOrderRoutes } from './modules/orders/merchant-routes.js';
+import { riderOrderRoutes } from './modules/orders/rider-routes.js';
+import { orderRoutes } from './modules/orders/routes.js';
 import { registerAppVersionCheck } from './plugins/app-version.js';
 import { authPlugin } from './plugins/auth.js';
 import { registerErrorHandling } from './plugins/errors.js';
@@ -111,6 +115,10 @@ export async function buildApp({
   await app.register(searchRoutes, { prefix: '/v1/search' });
   await app.register(cartRoutes, { prefix: '/v1/carts' });
   await app.register(groupCartRoutes, { prefix: '/v1/group-carts' });
+  await app.register(orderRoutes, { prefix: '/v1/orders' });
+  await app.register(orderChatRoutes, { prefix: '/v1/orders' });
+  await app.register(merchantOrderRoutes, { prefix: '/v1/merchants' });
+  await app.register(riderOrderRoutes, { prefix: '/v1/rider/orders' });
   await app.register(adminRoutes, { prefix: '/v1/admin' });
 
   return app;

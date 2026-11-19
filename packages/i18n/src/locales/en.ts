@@ -150,6 +150,11 @@ export const en = {
     orderDelivered: { title: 'Delivered', body: 'Enjoy! Tap to rate your order.' },
     orderCancelled: { title: 'Order cancelled', body: 'Order {{code}} was cancelled.' },
     newOrder: { title: 'New order', body: 'Order {{code}}: {{count}} item(s).' },
+    replacementProposed: {
+      title: 'Item replacement',
+      body: '{{store}} suggests {{item}} instead. Tap to accept or decline.',
+    },
+    chatMessage: { title: 'New message', body: '{{from}}: {{text}}' },
     jobOffer: { title: 'New delivery job', body: 'Pickup at {{store}}. Earn {{fee}}.' },
     staffInvite: {
       sms: 'You were added to {{store}} on eBalangay. Sign in to the eBalangay Merchant app with this number.',

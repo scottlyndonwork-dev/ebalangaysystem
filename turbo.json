@@ -3,7 +3,7 @@
   "globalDependencies": ["tsconfig.base.json", "eslint.config.mjs", "packages/config/**"],
   "tasks": {
     "db:generate": {
-      "inputs": ["prisma/schema.prisma", "prisma.config.ts"],
+      "inputs": ["prisma/schema/**", "prisma.config.ts"],
       "outputs": ["src/generated/**"]
     },
     "build": {

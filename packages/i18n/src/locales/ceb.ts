@@ -153,6 +153,11 @@ export const ceb: Resources = {
     orderDelivered: { title: 'Nahatod na', body: 'Enjoy! I-tap aron i-rate ang imong order.' },
     orderCancelled: { title: 'Gikansela ang order', body: 'Gikansela ang order {{code}}.' },
     newOrder: { title: 'Bag-ong order', body: 'Order {{code}}: {{count}} ka item.' },
+    replacementProposed: {
+      title: 'Puli nga item',
+      body: 'Gisugyot sa {{store}} ang {{item}} isip puli. I-tap aron dawaton o isalikway.',
+    },
+    chatMessage: { title: 'Bag-ong mensahe', body: '{{from}}: {{text}}' },
     jobOffer: { title: 'Bag-ong delivery', body: 'Pickup sa {{store}}. Kita: {{fee}}.' }, // TODO(native-review)
     staffInvite: {
       sms: 'Gidugang ka sa {{store}} sa eBalangay. Pag-sign in sa eBalangay Merchant app gamit kining numero.', // TODO(native-review)

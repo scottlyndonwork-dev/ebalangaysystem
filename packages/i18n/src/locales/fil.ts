@@ -153,6 +153,11 @@ export const fil: Resources = {
     orderDelivered: { title: 'Naihatid na', body: 'Enjoy! I-tap para i-rate ang order mo.' },
     orderCancelled: { title: 'Kinansela ang order', body: 'Kinansela ang order {{code}}.' },
     newOrder: { title: 'Bagong order', body: 'Order {{code}}: {{count}} item.' },
+    replacementProposed: {
+      title: 'Kapalit na item',
+      body: 'Iminumungkahi ng {{store}} ang {{item}} bilang kapalit. I-tap para tanggapin o tanggihan.',
+    },
+    chatMessage: { title: 'Bagong mensahe', body: '{{from}}: {{text}}' },
     jobOffer: { title: 'Bagong delivery', body: 'Pickup sa {{store}}. Kita: {{fee}}.' }, // TODO(native-review)
     staffInvite: {
       sms: 'Idinagdag ka sa {{store}} sa eBalangay. Mag-sign in sa eBalangay Merchant app gamit ang numerong ito.', // TODO(native-review)
