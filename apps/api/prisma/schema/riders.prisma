@@ -20,8 +20,9 @@ model Rider {
   createdAt          DateTime                               @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt          DateTime                               @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  user              User                @relation(fields: [userId], references: [id], onDelete: Restrict)
+  user              User                 @relation(fields: [userId], references: [id], onDelete: Restrict)
   documents         RiderDocument[]
+  breadcrumbs       DeliveryBreadcrumb[]
   zones             RiderZone[]
   shifts            RiderShift[]
   orders            Order[]
@@ -97,20 +98,21 @@ model RiderShift {
 
 /// One rider job; may batch several orders as ordered legs.
 model Delivery {
-  id                String             @id @default(uuid(7)) @db.Uuid
-  riderId           String?            @map("rider_id") @db.Uuid
-  zoneId            String?            @map("zone_id") @db.Uuid
-  status            DeliveryStatus     @default(searching)
-  distanceMeters    Int                @default(0) @map("distance_meters")
-  riderFeeCentavos  BigInt             @default(0) @map("rider_fee_centavos")
-  version           Int                @default(0)
-  assignedAt        DateTime?          @map("assigned_at") @db.Timestamptz(3)
-  completedAt       DateTime?          @map("completed_at") @db.Timestamptz(3)
-  createdAt         DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt         DateTime           @updatedAt @map("updated_at") @db.Timestamptz(3)
-  rider             Rider?             @relation(fields: [riderId], references: [id], onDelete: SetNull)
-  zone              Zone?              @relation(fields: [zoneId], references: [id], onDelete: SetNull)
+  id                String               @id @default(uuid(7)) @db.Uuid
+  riderId           String?              @map("rider_id") @db.Uuid
+  zoneId            String?              @map("zone_id") @db.Uuid
+  status            DeliveryStatus       @default(searching)
+  distanceMeters    Int                  @default(0) @map("distance_meters")
+  riderFeeCentavos  BigInt               @default(0) @map("rider_fee_centavos")
+  version           Int                  @default(0)
+  assignedAt        DateTime?            @map("assigned_at") @db.Timestamptz(3)
+  completedAt       DateTime?            @map("completed_at") @db.Timestamptz(3)
+  createdAt         DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime             @updatedAt @map("updated_at") @db.Timestamptz(3)
+  rider             Rider?               @relation(fields: [riderId], references: [id], onDelete: SetNull)
+  zone              Zone?                @relation(fields: [zoneId], references: [id], onDelete: SetNull)
   legs              DeliveryLeg[]
+  breadcrumbs       DeliveryBreadcrumb[]
   offers            DeliveryOffer[]
   insuranceSessions InsuranceSession[]
 
@@ -141,6 +143,25 @@ model DeliveryLeg {
   @@unique([deliveryId, sequence])
   @@index([orderId])
   @@map("delivery_legs")
+}
+
+/// Rider GPS trail for a delivery, flushed from Redis in batches (never per ping).
+model DeliveryBreadcrumb {
+  id         String   @id @default(uuid(7)) @db.Uuid
+  deliveryId String   @map("delivery_id") @db.Uuid
+  riderId    String   @map("rider_id") @db.Uuid
+  lat        Float
+  lng        Float
+  accuracyM  Float?   @map("accuracy_m")
+  speedMps   Float?   @map("speed_mps")
+  heading    Float?
+  recordedAt DateTime @map("recorded_at") @db.Timestamptz(3)
+  delivery   Delivery @relation(fields: [deliveryId], references: [id], onDelete: Cascade)
+  rider      Rider    @relation(fields: [riderId], references: [id], onDelete: Cascade)
+
+  @@index([deliveryId, recordedAt])
+  @@index([riderId, recordedAt])
+  @@map("delivery_breadcrumbs")
 }
 
 model DeliveryOffer {

@@ -29,13 +29,13 @@ model User {
   carts              Cart[]
   hostedGroupCarts   GroupCart[]
   groupCartMembers   GroupCartMember[]
-  orders             Order[]                 @relation("CustomerOrders")
+  orders             Order[]                  @relation("CustomerOrders")
   chatMessages       OrderChatMessage[]
   payments           Payment[]
   pointsAccount      PointsAccount?
   voucherRedemptions VoucherRedemption[]
-  referralsMade      Referral[]              @relation("Referrer")
-  referredBy         Referral?               @relation("Referee")
+  referralsMade      Referral[]               @relation("Referrer")
+  referredBy         Referral?                @relation("Referee")
   rider              Rider?
   reviews            Review[]
   ticketsRequested   Ticket[]
@@ -45,6 +45,7 @@ model User {
   subscriptionOrders SubscriptionOrder[]
   donations          Donation[]
   notifications      Notification[]
+  notificationPrefs  NotificationPreference[]
   subscriptions      Subscription[]
 
   @@index([status])

@@ -104,13 +104,31 @@ model Notification {
   title     String
   body      String
   data      Json             @default("{}")
+  /// Same key for the same user never creates a second row (e.g. order:{id}:rider_nearby).
+  dedupeKey String?          @map("dedupe_key")
   readAt    DateTime?        @map("read_at") @db.Timestamptz(3)
   createdAt DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
   user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@unique([userId, dedupeKey])
   @@index([userId, createdAt])
   @@index([userId, readAt])
   @@map("notifications")
+}
+
+/// Per-user, per-category channel opt-outs. No row = all channels on.
+/// OTP SMS ignores preferences.
+model NotificationPreference {
+  userId    String           @map("user_id") @db.Uuid
+  category  NotificationType
+  push      Boolean          @default(true)
+  sms       Boolean          @default(true)
+  inApp     Boolean          @default(true) @map("in_app")
+  updatedAt DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, category])
+  @@map("notification_preferences")
 }
 
 /// "Gives Back": round-up / add-on donations.
