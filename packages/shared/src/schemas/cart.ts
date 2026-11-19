@@ -27,12 +27,21 @@ export type CartItem = z.infer<typeof cartItemSchema>;
 /** Server-computed price breakdown, shared by cart quotes and orders. */
 export const priceBreakdownSchema = z.object({
   subtotalCentavos: nonNegativeCentavosSchema,
+  /** Gross delivery fee after surge; free delivery shows up in deliveryDiscountCentavos. */
   deliveryFeeCentavos: nonNegativeCentavosSchema,
   serviceFeeCentavos: nonNegativeCentavosSchema,
   smallOrderFeeCentavos: nonNegativeCentavosSchema,
+  /** All discounts: item discounts + deliveryDiscountCentavos. */
   discountCentavos: nonNegativeCentavosSchema,
+  deliveryDiscountCentavos: nonNegativeCentavosSchema,
+  pointsRedeemed: z.number().int().nonnegative(),
+  pointsValueCentavos: nonNegativeCentavosSchema,
   tipCentavos: nonNegativeCentavosSchema,
+  donationCentavos: nonNegativeCentavosSchema,
   totalCentavos: nonNegativeCentavosSchema,
+  walletAppliedCentavos: nonNegativeCentavosSchema,
+  /** Charged to the payment method: total - wallet. */
+  amountDueCentavos: nonNegativeCentavosSchema,
 });
 export type PriceBreakdown = z.infer<typeof priceBreakdownSchema>;
 

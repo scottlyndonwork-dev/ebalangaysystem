@@ -12,6 +12,7 @@ import { Prisma } from '../../generated/prisma/client.js';
 import { AppError } from '../../lib/errors.js';
 import { type ProductRow, toProduct } from '../catalog/service.js';
 import { availabilityOf, profileInclude, type MerchantWithProfile } from '../merchants/service.js';
+import type { StoreDeliveryEstimate } from '../pricing/context.js';
 
 // ------------------------------------------------------------------ cursors
 
@@ -190,6 +191,7 @@ export function toSummary(
   m: MerchantWithProfile,
   distanceMeters: number | null,
   now = new Date(),
+  delivery: StoreDeliveryEstimate | null = null,
 ): MerchantSummary {
   const a = availabilityOf(m, now);
   return {
@@ -209,8 +211,8 @@ export function toSummary(
     verifiedBadge: m.verifiedBadge,
     freeDelivery: m.freeDelivery,
     distanceMeters: distanceMeters === null ? null : Math.round(distanceMeters),
-    deliveryFeeCentavos: null,
-    etaMinutes: null,
+    deliveryFeeCentavos: delivery?.deliveryFeeCentavos ?? null,
+    etaMinutes: delivery?.etaMinutes ?? null,
   };
 }
 

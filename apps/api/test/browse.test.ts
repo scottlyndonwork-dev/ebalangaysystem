@@ -183,6 +183,48 @@ describe('GET /v1/stores (nearby)', () => {
     expect(page.items.find((s) => s.id === closed.id)?.closedReason).toBe('outside_hours');
   });
 
+  it('quotes delivery fee (zone + surge, free delivery) and ETA per store', async () => {
+    const pick = (page: StoreList, id: string) => {
+      const s = page.items.find((x) => x.id === id);
+      if (!s) throw new Error(`store ${id} not listed`);
+      return s;
+    };
+    let page = await stores();
+    // No tiers in this zone: base fee covers the first km. No riders online: 20 min dispatch.
+    expect(pick(page, a.id)).toMatchObject({ deliveryFeeCentavos: 4900, etaMinutes: 30 + 2 + 3 });
+    expect(pick(page, b.id)).toMatchObject({ deliveryFeeCentavos: 0, etaMinutes: 26 + 1 + 3 });
+
+    const event = await db().surgeEvent.create({
+      data: {
+        zoneId,
+        multiplierBps: 15_000,
+        reason: 'rain',
+        startsAt: new Date(Date.now() - 60_000),
+      },
+    });
+    try {
+      page = await stores();
+      expect(pick(page, a.id).deliveryFeeCentavos).toBe(7350);
+      expect(pick(page, b.id).deliveryFeeCentavos).toBe(0);
+      // Admin-tunable cap from platform_settings
+      await db().platformSetting.upsert({
+        where: { key: 'max_surge_bps' },
+        create: { key: 'max_surge_bps', value: 12_000 },
+        update: { value: 12_000 },
+      });
+      page = await stores();
+      expect(pick(page, a.id).deliveryFeeCentavos).toBe(5880);
+      const one = (await api().get(`/v1/stores/${a.id}?${near}`).expect(200)).body as PublicStore;
+      expect(one.deliveryFeeCentavos).toBe(5880);
+      expect(one.etaMinutes).toBe(35);
+      const noLoc = (await api().get(`/v1/stores/${a.id}`).expect(200)).body as PublicStore;
+      expect(noLoc).toMatchObject({ deliveryFeeCentavos: null, etaMinutes: null });
+    } finally {
+      await db().surgeEvent.delete({ where: { id: event.id } });
+      await db().platformSetting.deleteMany({ where: { key: 'max_surge_bps' } });
+    }
+  });
+
   it('filters by open now, rating, verified, free delivery and business type', async () => {
     expect(ids((await stores('&openNow=true')).items)).toEqual([b.id, a.id, c.id]);
     expect(ids((await stores('&minRating=4.5')).items)).toEqual([b.id, closed.id]);

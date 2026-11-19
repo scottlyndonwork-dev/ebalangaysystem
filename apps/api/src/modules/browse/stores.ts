@@ -26,6 +26,13 @@ import type { ZodTypeProvider } from '../../lib/zod-provider.js';
 import { productInclude } from '../catalog/service.js';
 import { holidayOf } from '../merchants/service.js';
 import {
+  estimateStoreDelivery,
+  loadBrowsePricing,
+  loadPrepMedians,
+  loadZonePricing,
+} from '../pricing/context.js';
+import { loadPricingSettings } from '../pricing/settings.js';
+import {
   type Keyset,
   decodeKeyset,
   deliversTo,
@@ -125,6 +132,12 @@ export async function browseStoreRoutes(app: FastifyInstance): Promise<void> {
             ? Prisma.sql`m.prep_time_minutes::float8`
             : distanceTo(q.lat, q.lng);
 
+      const zonePricing = await loadZonePricing(
+        app.db,
+        zoneId,
+        now,
+        await loadPricingSettings(app.db),
+      );
       const run = (db: Db | Tx) =>
         scanPage<StoreHitRow, MerchantSummary, Keyset>({
           start: decodeKeyset(q.cursor),
@@ -138,14 +151,16 @@ export async function browseStoreRoutes(app: FastifyInstance): Promise<void> {
             ORDER BY s.sort_key, s.id LIMIT ${take}::int`,
           keyOf: (row) => ({ k: row.sort_key, id: row.id }),
           map: async (rows) => {
-            const stores = await loadStores(
-              db,
-              rows.map((row) => row.id),
-              now,
-            );
+            const ids = rows.map((row) => row.id);
+            const stores = await loadStores(db, ids, now);
+            const prep = zonePricing ? await loadPrepMedians(db, ids, now) : null;
             return rows.map((row) => {
               const m = stores.get(row.id);
-              const s = m ? toSummary(m, row.distance_m, now) : null;
+              const delivery =
+                m && zonePricing
+                  ? estimateStoreDelivery(zonePricing, m, row.distance_m, prep?.get(m.id))
+                  : null;
+              const s = m ? toSummary(m, row.distance_m, now, delivery) : null;
               return s && (!q.openNow || s.isOpen) ? s : null;
             });
           },
@@ -186,9 +201,14 @@ export async function browseStoreRoutes(app: FastifyInstance): Promise<void> {
           SELECT ${distanceTo(lat, lng)} AS d FROM merchants m WHERE m.id = ${m.id}::uuid`;
         distance = row?.d ?? null;
       }
+      let delivery = null;
+      if (distance !== null && m.zoneId) {
+        const { zone, prep } = await loadBrowsePricing(app.db, m.zoneId, [m.id], now);
+        if (zone) delivery = estimateStoreDelivery(zone, m, distance, prep.get(m.id));
+      }
       const today = manilaDateKey(now);
       return {
-        ...toSummary(m, distance, now),
+        ...toSummary(m, distance, now, delivery),
         description: m.description,
         addressLine: m.addressLine,
         barangay: m.barangay,
