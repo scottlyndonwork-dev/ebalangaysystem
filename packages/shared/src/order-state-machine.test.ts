@@ -24,11 +24,11 @@ placed > confirmed : merchant system
 placed > cancelled : customer merchant system admin
 confirmed > preparing : merchant
 confirmed > rider_assigned : system admin [delivery]
-confirmed > cancelled : merchant admin
+confirmed > cancelled : customer merchant admin
 confirmed > failed : system admin
 preparing > ready : merchant
 preparing > rider_assigned : system admin [delivery]
-preparing > cancelled : merchant admin
+preparing > cancelled : customer merchant admin
 preparing > failed : system admin
 ready > rider_assigned : system admin [delivery]
 ready > delivered : merchant [pos]
@@ -116,9 +116,9 @@ describe('order state machine', () => {
     for (const s of STATUSES) expect(findTransition(s, s)).toBeUndefined();
   });
 
-  it('customers can only cancel before the merchant accepts', () => {
+  it('customers can cancel until the order is ready', () => {
     const allowed = STATUSES.filter((s) => canTransition(s, 'cancelled', 'customer'));
-    expect(allowed).toEqual(['pending_payment', 'placed']);
+    expect(allowed).toEqual(['pending_payment', 'placed', 'confirmed', 'preparing']);
   });
 
   it('every status is reachable from pending_payment and can reach a terminal status', () => {

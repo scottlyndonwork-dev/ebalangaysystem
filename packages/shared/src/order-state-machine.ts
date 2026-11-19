@@ -86,9 +86,10 @@ export const ORDER_TRANSITIONS: readonly OrderTransition[] = [
   { from: S.ON_THE_WAY, to: S.DELIVERED, actors: [RIDER, ADMIN] },
   { from: S.RIDER_NEARBY, to: S.DELIVERED, actors: [RIDER, ADMIN] },
 
-  // Cancellation: customers only before the merchant accepts; merchants until pickup.
-  { from: S.CONFIRMED, to: S.CANCELLED, actors: [MERCHANT, ADMIN] },
-  { from: S.PREPARING, to: S.CANCELLED, actors: [MERCHANT, ADMIN] },
+  // Cancellation: customers until the order is ready (after preparing starts, Cancellation
+  // Protection compensates the merchant); merchants until pickup.
+  { from: S.CONFIRMED, to: S.CANCELLED, actors: [CUSTOMER, MERCHANT, ADMIN] },
+  { from: S.PREPARING, to: S.CANCELLED, actors: [CUSTOMER, MERCHANT, ADMIN] },
   { from: S.READY, to: S.CANCELLED, actors: [MERCHANT, ADMIN] },
   { from: S.RIDER_ASSIGNED, to: S.CANCELLED, actors: [MERCHANT, ADMIN] },
   { from: S.RIDER_AT_MERCHANT, to: S.CANCELLED, actors: [MERCHANT, ADMIN] },
