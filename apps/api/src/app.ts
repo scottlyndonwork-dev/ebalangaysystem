@@ -20,6 +20,11 @@ import { meRoutes } from './modules/users/routes.js';
 import { orderChatRoutes } from './modules/orders/chat.js';
 import { merchantOrderRoutes } from './modules/orders/merchant-routes.js';
 import { riderOrderRoutes } from './modules/orders/rider-routes.js';
+import {
+  orderTrackingLinkRoutes,
+  publicTrackingRoutes,
+  riderLocationRoutes,
+} from './modules/tracking/routes.js';
 import { orderRoutes } from './modules/orders/routes.js';
 import { registerAppVersionCheck } from './plugins/app-version.js';
 import { authPlugin } from './plugins/auth.js';
@@ -124,6 +129,9 @@ export async function buildApp({
   await app.register(orderChatRoutes, { prefix: '/v1/orders' });
   await app.register(merchantOrderRoutes, { prefix: '/v1/merchants' });
   await app.register(riderOrderRoutes, { prefix: '/v1/rider/orders' });
+  await app.register(riderLocationRoutes, { prefix: '/v1/rider/location' });
+  await app.register(orderTrackingLinkRoutes, { prefix: '/v1/orders' });
+  await app.register(publicTrackingRoutes, { prefix: '/v1/track' });
   await app.register(adminRoutes, { prefix: '/v1/admin' });
   if (queues) await app.register(bullBoardPlugin, { prefix: BULL_BOARD_PATH, queues });
 

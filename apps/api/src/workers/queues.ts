@@ -4,6 +4,8 @@ import type { Logger } from 'pino';
 export const QueueName = {
   OUTBOX: 'outbox-relay',
   NOTIFICATIONS: 'notifications',
+  /** Batch-writes queued rider breadcrumbs to Postgres every 60s. */
+  BREADCRUMBS: 'rider-breadcrumbs',
   /** Jobs that failed every attempt land here for inspection (Bull Board). No consumer. */
   DEAD_LETTER: 'dead-letter',
 } as const;
@@ -37,6 +39,7 @@ export function bullConnection(url: string): ConnectionOptions {
 export interface Queues {
   outbox: Queue;
   notifications: Queue;
+  breadcrumbs: Queue;
   deadLetter: Queue;
 }
 
@@ -48,11 +51,22 @@ export function createQueues(connection: ConnectionOptions, prefix?: string): Qu
     // Relay ticks are retried by the next tick; per-event failures are tracked on the row.
     outbox: make(QueueName.OUTBOX, { attempts: 1, removeOnComplete: true, removeOnFail: 100 }),
     notifications: make(QueueName.NOTIFICATIONS),
+    // Periodic: a failed run is simply retried by the next one, so no backoff or DLQ.
+    breadcrumbs: make(QueueName.BREADCRUMBS, {
+      attempts: 1,
+      removeOnComplete: true,
+      removeOnFail: 100,
+    }),
     deadLetter: make(QueueName.DEAD_LETTER, { removeOnComplete: { age: 30 * 24 * 3600 } }),
   };
 }
 
-export const allQueues = (q: Queues): Queue[] => [q.outbox, q.notifications, q.deadLetter];
+export const allQueues = (q: Queues): Queue[] => [
+  q.outbox,
+  q.notifications,
+  q.breadcrumbs,
+  q.deadLetter,
+];
 
 export async function closeQueues(q: Queues): Promise<void> {
   await Promise.allSettled(allQueues(q).map((x) => x.close()));

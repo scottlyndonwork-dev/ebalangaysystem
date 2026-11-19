@@ -20,4 +20,5 @@ export * from './schemas/merchant.js';
 export * from './schemas/order.js';
 export * from './schemas/payment.js';
 export * from './schemas/rider.js';
+export * from './schemas/tracking.js';
 export * from './schemas/user.js';

@@ -11,7 +11,7 @@ import {
   SocketEvent,
 } from '@ebalangay/shared';
 import type { Tx } from '../../db.js';
-import type { Prisma } from '../../generated/prisma/client.js';
+import type { DeliveryStatus, Prisma } from '../../generated/prisma/client.js';
 import { AppError } from '../../lib/errors.js';
 import { syncKeyProductAutoPause, changeStock } from '../catalog/service.js';
 import { cancellationCompensation } from '../pricing/engine.js';
@@ -33,6 +33,16 @@ const STATUS_TIMESTAMP: Partial<Record<OrderStatus, keyof Prisma.OrderUncheckedU
   delivered: 'deliveredAt',
   cancelled: 'cancelledAt',
 };
+
+/** Order statuses that move the rider job along (single-order deliveries for now). */
+const DELIVERY_STATUS: Partial<Record<OrderStatus, DeliveryStatus>> = {
+  rider_at_merchant: 'at_merchant',
+  picked_up: 'picked_up',
+  delivered: 'delivered',
+  cancelled: 'cancelled',
+  failed: 'failed',
+};
+const DELIVERY_DONE: readonly DeliveryStatus[] = ['delivered', 'cancelled', 'failed'];
 
 const CUSTOMER_PUSH: Partial<Record<OrderStatus, string>> = {
   confirmed: 'orderConfirmed',
@@ -116,6 +126,19 @@ export async function transitionOrder(tx: Tx, req: TransitionRequest): Promise<O
       createdAt: now,
     },
   });
+
+  const deliveryStatus = DELIVERY_STATUS[req.to];
+  if (deliveryStatus && order.riderId) {
+    const done = DELIVERY_DONE.includes(deliveryStatus);
+    await tx.delivery.updateMany({
+      where: { legs: { some: { orderId: order.id } }, status: { notIn: [...DELIVERY_DONE] } },
+      data: {
+        status: deliveryStatus,
+        version: { increment: 1 },
+        ...(done ? { completedAt: now } : {}),
+      },
+    });
+  }
 
   if (req.to === 'cancelled' || req.to === 'failed') {
     await releaseOrderHolds(tx, order, !AFTER_PICKUP.includes(from), req.actorUserId);

@@ -28,7 +28,12 @@ export const SocketEvent = {
 export type SocketEvent = (typeof SocketEvent)[keyof typeof SocketEvent];
 
 /** Client -> server control messages. Joins are auth-checked server-side. */
-export const SocketCommand = { JOIN: 'room.join', LEAVE: 'room.leave' } as const;
+export const SocketCommand = {
+  JOIN: 'room.join',
+  LEAVE: 'room.leave',
+  /** Rider app -> server: one riderLocationPingSchema ping (every ~5s); ack is RoomAck. */
+  RIDER_LOCATION: 'rider.location',
+} as const;
 export const roomCommandSchema = z.object({ room: z.string().min(1).max(100) });
 export const roomAckSchema = z.object({ ok: z.boolean(), error: z.string().optional() });
 export type RoomAck = z.infer<typeof roomAckSchema>;

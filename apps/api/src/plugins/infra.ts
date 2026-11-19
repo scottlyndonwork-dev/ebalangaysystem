@@ -1,4 +1,5 @@
 import fp from 'fastify-plugin';
+import type { Server } from 'socket.io';
 import type { Db } from '../db.js';
 import type { Env } from '../env.js';
 import type { SmsSender } from '../lib/sms.js';
@@ -12,6 +13,8 @@ declare module 'fastify' {
     redis: RedisClient;
     sms: SmsSender;
     storage: Storage;
+    /** Set by attachRealtime; null when this instance has no Socket.IO server (most tests). */
+    realtime: { io: Server | null };
   }
 }
 
@@ -29,6 +32,8 @@ export const infraPlugin = fp<{
     app.decorate('redis', redis);
     app.decorate('sms', sms);
     app.decorate('storage', storage);
+    // A holder object, so attaching Socket.IO later is visible to already-registered plugins.
+    app.decorate('realtime', { io: null });
   },
   { name: 'infra' },
 );

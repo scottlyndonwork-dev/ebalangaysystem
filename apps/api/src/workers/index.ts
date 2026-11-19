@@ -3,6 +3,7 @@ import { pino } from 'pino';
 import { assertExtensions, createDb } from '../db.js';
 import { loadEnv } from '../env.js';
 import { initSentry } from '../plugins/sentry.js';
+import { createRedis } from '../redis.js';
 import { createSocketEmitter } from './emitter.js';
 import { bullConnection, closeQueues, createQueues } from './queues.js';
 import { startWorkers } from './runtime.js';
@@ -29,8 +30,12 @@ try {
 const connection = bullConnection(env.REDIS_URL);
 const queues = createQueues(connection);
 const emitter = createSocketEmitter(env.REDIS_URL, (err) => log.error({ err }, 'redis error'));
+const redis = createRedis(env.REDIS_URL);
+redis.on('error', (err) => log.error({ err }, 'redis error'));
+await redis.connect().catch((err: unknown) => log.error({ err }, 'redis connect failed'));
 const runtime = await startWorkers({
   db,
+  redis,
   queues,
   emitter,
   connection,
@@ -46,7 +51,7 @@ const shutdown = async (signal: string) => {
   log.info({ signal }, 'shutting down workers');
   await runtime.close();
   await closeQueues(queues);
-  await Promise.allSettled([emitter.close(), db.$disconnect(), Sentry.close(2000)]);
+  await Promise.allSettled([emitter.close(), redis.quit(), db.$disconnect(), Sentry.close(2000)]);
   process.exit(0);
 };
 process.on('SIGINT', () => void shutdown('SIGINT'));

@@ -2,6 +2,7 @@ import { createAdapter } from '@socket.io/redis-adapter';
 import {
   isTerminalStatus,
   parseRoom,
+  riderLocationPingSchema,
   roomCommandSchema,
   Rooms,
   SocketCommand,
@@ -9,6 +10,11 @@ import {
 } from '@ebalangay/shared';
 import type { FastifyInstance } from 'fastify';
 import { Server } from 'socket.io';
+import { AppError } from '../lib/errors.js';
+import {
+  approvedRiderId as requireApprovedRider,
+  ingestRiderLocation,
+} from '../modules/tracking/location.js';
 import type { AccessClaims, AuthContext, MfaClaims } from './auth.js';
 import { ACCESS_COOKIE } from './auth.js';
 
@@ -121,6 +127,9 @@ export async function canJoinRoom(
   }
 }
 
+/** Pings closer together than this are dropped (the app sends one every ~5s). */
+export const MIN_LOCATION_INTERVAL_MS = 1000;
+
 /** Same client-IP rule as Fastify's trustProxy: trust only TRUST_PROXY_HOPS forwarded hops. */
 export function socketIp(
   app: FastifyInstance,
@@ -210,6 +219,31 @@ export function attachRealtime(app: FastifyInstance): Server {
       if (ok && socket.connected) await socket.join(room);
       ack?.(ok ? { ok: true } : { ok: false, error: 'FORBIDDEN' });
     });
+    let lastPingAt = 0;
+    socket.on(
+      SocketCommand.RIDER_LOCATION,
+      async (payload: unknown, ack?: (a: RoomAck) => void) => {
+        if (auth.app !== 'rider') return ack?.({ ok: false, error: 'FORBIDDEN' });
+        const parsed = riderLocationPingSchema.safeParse(payload);
+        if (!parsed.success) return ack?.({ ok: false, error: 'VALIDATION_FAILED' });
+        const nowMs = Date.now();
+        if (nowMs - lastPingAt < MIN_LOCATION_INTERVAL_MS) {
+          return ack?.({ ok: false, error: 'RATE_LIMITED' });
+        }
+        lastPingAt = nowMs;
+        try {
+          const riderId = await requireApprovedRider(app.db, auth.userId);
+          await ingestRiderLocation({ db: app.db, redis: app.redis, io, log: app.log }, riderId, [
+            parsed.data,
+          ]);
+          ack?.({ ok: true });
+        } catch (err) {
+          if (err instanceof AppError) return ack?.({ ok: false, error: err.code });
+          app.log.error({ err }, 'rider location failed');
+          ack?.({ ok: false, error: 'INTERNAL' });
+        }
+      },
+    );
     socket.on(SocketCommand.LEAVE, async (payload: unknown, ack?: (a: RoomAck) => void) => {
       const parsed = roomCommandSchema.safeParse(payload);
       // The user room is permanent: user-targeted events must always arrive.
@@ -220,7 +254,9 @@ export function attachRealtime(app: FastifyInstance): Server {
     });
   });
 
+  app.realtime.io = io;
   app.addHook('onClose', async () => {
+    app.realtime.io = null;
     await io.close();
     await Promise.allSettled([pub.quit(), sub.quit()]);
   });

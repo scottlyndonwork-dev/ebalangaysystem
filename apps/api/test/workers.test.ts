@@ -193,6 +193,7 @@ describe('worker process', () => {
     await until(async () => emitter.ready());
     runtime = await startWorkers({
       db: ctx.app.db,
+      redis: ctx.app.redis,
       queues,
       emitter,
       connection,
@@ -242,6 +243,7 @@ describe('worker process', () => {
   it('upserting the scheduler again (restart/replica) keeps a single schedule', async () => {
     const again = await startWorkers({
       db: ctx.app.db,
+      redis: ctx.app.redis,
       queues,
       emitter,
       connection,
@@ -309,7 +311,7 @@ describe('bull board', () => {
       .expect(200);
     const names = (list.body as { queues: { name: string; readOnlyMode: boolean }[] }).queues;
     expect(names.map((q) => q.name).sort()).toEqual(
-      ['dead-letter', 'notifications', 'outbox-relay'].sort(),
+      ['dead-letter', 'notifications', 'outbox-relay', 'rider-breadcrumbs'].sort(),
     );
     expect(names.every((q) => q.readOnlyMode)).toBe(true);
   });

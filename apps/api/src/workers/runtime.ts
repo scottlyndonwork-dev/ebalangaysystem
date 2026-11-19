@@ -1,19 +1,26 @@
 import { type ConnectionOptions, Worker } from 'bullmq';
 import type { Logger } from 'pino';
 import type { Db } from '../db.js';
+import { flushBreadcrumbs } from '../modules/tracking/breadcrumbs.js';
+import type { RedisClient } from '../redis.js';
 import type { SocketEmitter } from './emitter.js';
 import { relayOutbox } from './outbox-relay.js';
 import { attachDeadLetter, QueueName, type Queues } from './queues.js';
 
 export const OUTBOX_SCHEDULER_ID = 'outbox-relay-tick';
+export const BREADCRUMB_SCHEDULER_ID = 'rider-breadcrumbs-flush';
+export const BREADCRUMB_FLUSH_MS = 60_000;
 
 export interface WorkerDeps {
   db: Db;
+  /** Plain Redis client (rider locations, breadcrumb queue). */
+  redis: RedisClient;
   queues: Queues;
   emitter: SocketEmitter;
   connection: ConnectionOptions;
   log: Logger;
   outboxPollMs: number;
+  breadcrumbFlushMs?: number;
   /** Must match the queues' prefix (tests isolate keys with one). */
   prefix?: string;
 }
@@ -46,10 +53,22 @@ export async function startWorkers(deps: WorkerDeps): Promise<WorkerRuntime> {
   );
   outbox.on('failed', (_job, err) => log.warn({ err }, 'outbox tick failed'));
 
-  const workers = [outbox];
+  const breadcrumbs = new Worker(
+    QueueName.BREADCRUMBS,
+    async () => {
+      const r = await flushBreadcrumbs(db, deps.redis);
+      if (r.breadcrumbs || r.riders) log.debug(r, 'breadcrumbs flushed');
+      return r;
+    },
+    { ...base, concurrency: 1 },
+  );
+
+  const workers = [outbox, breadcrumbs];
   for (const w of workers)
     w.on('error', (err) => log.error({ err, queue: w.name }, 'worker error'));
-  for (const w of workers.filter((x) => x.name !== QueueName.OUTBOX)) {
+  // Ticks of a schedule aren't dead-lettered: the next tick is the retry.
+  const scheduled: string[] = [QueueName.OUTBOX, QueueName.BREADCRUMBS];
+  for (const w of workers.filter((x) => !scheduled.includes(x.name))) {
     attachDeadLetter(w, queues.deadLetter, log);
   }
 
@@ -58,6 +77,11 @@ export async function startWorkers(deps: WorkerDeps): Promise<WorkerRuntime> {
     OUTBOX_SCHEDULER_ID,
     { every: deps.outboxPollMs },
     { name: 'tick' },
+  );
+  await queues.breadcrumbs.upsertJobScheduler(
+    BREADCRUMB_SCHEDULER_ID,
+    { every: deps.breadcrumbFlushMs ?? BREADCRUMB_FLUSH_MS },
+    { name: 'flush' },
   );
 
   return {
