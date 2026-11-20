@@ -190,6 +190,14 @@ export const fil: Resources = {
       title: 'Inalis ang Verified badge',
       body: 'Hindi na naaabot ng {{store}} ang mga kailangan para sa Verified badge. Susuriin ulit tuwing Lunes.', // TODO(native-review)
     },
+    helmetSelfieReminder: {
+      title: 'Kailangan ang helmet check',
+      body: 'Kumuha ng helmet selfie sa app para patuloy kang makatanggap ng jobs. Ikaw ay ise-set na offline sa loob ng {{minutes}} minuto.', // TODO(native-review)
+    },
+    safetyAutoOffline: {
+      title: 'Offline ka na',
+      body: 'Walang helmet selfie kaya ikaw ay na-set na offline. Kumuha ng selfie para makapag-online ulit.', // TODO(native-review)
+    },
     replacementProposed: {
       title: 'Kapalit na item',
       body: 'Iminumungkahi ng {{store}} ang {{item}} bilang kapalit. I-tap para tanggapin o tanggihan.',

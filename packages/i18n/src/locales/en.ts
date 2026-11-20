@@ -187,6 +187,14 @@ export const en = {
       title: 'Verified badge removed',
       body: '{{store}} no longer meets the Verified badge requirements. It is checked again every Monday.',
     },
+    helmetSelfieReminder: {
+      title: 'Helmet check needed',
+      body: 'Take your helmet selfie in the app to keep receiving jobs. You will be set offline in {{minutes}} minutes.',
+    },
+    safetyAutoOffline: {
+      title: 'You are now offline',
+      body: 'No helmet selfie was taken, so you were set offline. Take the selfie to go online again.',
+    },
     replacementProposed: {
       title: 'Item replacement',
       body: '{{store}} suggests {{item}} instead. Tap to accept or decline.',

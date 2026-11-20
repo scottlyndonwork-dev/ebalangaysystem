@@ -17,6 +17,8 @@ export const SocketEvent = {
   RIDER_LOCATION: 'rider.location',
   RIDER_JOB_OFFER: 'rider.job_offer',
   RIDER_JOB_CANCELLED: 'rider.job_cancelled',
+  /** Safety monitor: helmet-selfie reminder or auto-offline (rider room). */
+  RIDER_SAFETY: 'rider.safety',
   MERCHANT_NEW_ORDER: 'merchant.new_order',
   MERCHANT_ORDER_CANCELLED: 'merchant.order_cancelled',
   /** A scheduled order is due: start preparing (merchant room). */
@@ -31,6 +33,8 @@ export const SocketEvent = {
   ADMIN_METRICS: 'admin.metrics',
   /** An order needs ops attention (e.g. no rider for too long). */
   ADMIN_ORDER_ALERT: 'admin.order_alert',
+  /** A rider needs ops attention (e.g. no GPS during an active delivery). */
+  ADMIN_RIDER_ALERT: 'admin.rider_alert',
   /** A recurring order ran: placed or skipped (customer's user room). */
   SUBSCRIPTION_RUN: 'subscription.run',
   NOTIFICATION_CREATED: 'notification.created',
@@ -87,6 +91,15 @@ export const socketEventSchemas = {
   [SocketEvent.RIDER_JOB_CANCELLED]: socketEnvelope(
     z.object({ deliveryId: idSchema, orderId: idSchema, reason: z.string() }),
   ),
+  [SocketEvent.RIDER_SAFETY]: socketEnvelope(
+    z.object({
+      riderId: idSchema,
+      shiftId: idSchema,
+      kind: z.enum(['helmet_reminder', 'auto_offline']),
+      /** Minutes online without a passed helmet selfie. */
+      minutes: z.number().int().nonnegative(),
+    }),
+  ),
   [SocketEvent.MERCHANT_NEW_ORDER]: socketEnvelope(
     z.object({ orderId: idSchema, code: z.string(), itemCount: z.number().int().positive() }),
   ),
@@ -131,6 +144,17 @@ export const socketEventSchemas = {
       status: orderStatusSchema,
       kind: z.enum(['no_rider']),
       minutes: z.number().int().nonnegative(),
+    }),
+  ),
+  [SocketEvent.ADMIN_RIDER_ALERT]: socketEnvelope(
+    z.object({
+      riderId: idSchema,
+      deliveryId: idSchema,
+      orderIds: z.array(idSchema),
+      kind: z.enum(['no_gps']),
+      /** Minutes since the last ping (or since assignment when it never pinged). */
+      minutes: z.number().int().nonnegative(),
+      lastSeenAt: timestampSchema.nullable(),
     }),
   ),
   [SocketEvent.SUBSCRIPTION_RUN]: socketEnvelope(

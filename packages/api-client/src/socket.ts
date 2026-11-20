@@ -67,6 +67,9 @@ export function keysForEvent<E extends SocketEvent>(
     case SocketEvent.RIDER_JOB_OFFER:
     case SocketEvent.RIDER_JOB_CANCELLED:
       return [queryKeys.riders.jobs()];
+    // Auto-offline changes the rider's status.
+    case SocketEvent.RIDER_SAFETY:
+      return [queryKeys.riders.me()];
     case SocketEvent.STORE_UPDATED:
       return [queryKeys.merchants.detail(id), queryKeys.merchants.all()];
     case SocketEvent.PRODUCT_UPDATED:

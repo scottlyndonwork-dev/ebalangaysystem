@@ -22,3 +22,4 @@ export * from './schemas/payment.js';
 export * from './schemas/rider.js';
 export * from './schemas/tracking.js';
 export * from './schemas/user.js';
+export * from './schemas/weather.js';

@@ -17,9 +17,12 @@ import {
 import { releaseScheduledOrders } from '../modules/orders/release.js';
 import { sweepStaleOrders } from '../modules/orders/sweeper.js';
 import { expirePoints } from '../modules/points/expiry.js';
+import { monitorSafety } from '../modules/riders/safety.js';
 import { expireStories } from '../modules/stories/expiry.js';
 import { runSubscriptions } from '../modules/subscriptions/run.js';
 import { flushBreadcrumbs } from '../modules/tracking/breadcrumbs.js';
+import { PagasaWeatherFeed, type WeatherFeed } from '../modules/weather/feed.js';
+import { watchWeather } from '../modules/weather/watcher.js';
 import type { RedisClient } from '../redis.js';
 import type { SocketEmitter } from './emitter.js';
 import { relayOutbox } from './outbox-relay.js';
@@ -39,6 +42,8 @@ export const ScheduledJob = {
   EXPIRE_POINTS: 'expire-points',
   REFRESH_ANALYTICS: 'refresh-analytics',
   VERIFIED_BADGES: 'verified-badges',
+  SAFETY_MONITOR: 'safety-monitor',
+  WEATHER_WATCH: 'weather-watch',
 } as const;
 export type ScheduledJob = (typeof ScheduledJob)[keyof typeof ScheduledJob];
 
@@ -48,6 +53,8 @@ export const SCHEDULED_EVERY_MS: Partial<Record<ScheduledJob, number>> = {
   [ScheduledJob.SWEEP_STALE_ORDERS]: 60_000,
   [ScheduledJob.RUN_SUBSCRIPTIONS]: 5 * 60_000,
   [ScheduledJob.EXPIRE_STORIES]: 5 * 60_000,
+  [ScheduledJob.SAFETY_MONITOR]: 60_000,
+  [ScheduledJob.WEATHER_WATCH]: 15 * 60_000,
 };
 
 export const SCHEDULE_TZ = 'Asia/Manila';
@@ -76,6 +83,8 @@ export interface WorkerDeps {
   sms: SmsSender;
   /** Story media cleanup. */
   storage: Storage;
+  /** Weather surges; defaults to the PAGASA placeholder (no data). */
+  weather?: WeatherFeed;
   log: Logger;
   outboxPollMs: number;
   breadcrumbFlushMs?: number;
@@ -94,6 +103,7 @@ export interface WorkerRuntime {
 export async function startWorkers(deps: WorkerDeps): Promise<WorkerRuntime> {
   const { db, queues, emitter, connection, log, prefix } = deps;
   const base = { connection, ...(prefix ? { prefix } : {}) };
+  const weather = deps.weather ?? new PagasaWeatherFeed(log);
 
   const outbox = new Worker(
     QueueName.OUTBOX,
@@ -160,6 +170,10 @@ export async function startWorkers(deps: WorkerDeps): Promise<WorkerRuntime> {
           return refreshAnalyticsViews(db);
         case ScheduledJob.VERIFIED_BADGES:
           return evaluateVerifiedBadges({ db, log });
+        case ScheduledJob.SAFETY_MONITOR:
+          return monitorSafety({ db, redis: deps.redis, log });
+        case ScheduledJob.WEATHER_WATCH:
+          return watchWeather({ db, feed: weather, log });
         default:
           throw new UnrecoverableError(`unknown scheduled job ${job.name}`);
       }

@@ -190,6 +190,14 @@ export const ceb: Resources = {
       title: 'Gikuha ang Verified badge',
       body: 'Dili na maabot sa {{store}} ang mga kinahanglan sa Verified badge. Susihon pag-usab matag Lunes.', // TODO(native-review)
     },
+    helmetSelfieReminder: {
+      title: 'Kinahanglan ang helmet check',
+      body: 'Pagkuha og helmet selfie sa app aron makadawat gihapon og jobs. Ma-offline ka sulod sa {{minutes}} ka minuto.', // TODO(native-review)
+    },
+    safetyAutoOffline: {
+      title: 'Offline na ka',
+      body: 'Walay helmet selfie busa gi-offline ka. Pagkuha og selfie aron maka-online pag-usab.', // TODO(native-review)
+    },
     replacementProposed: {
       title: 'Puli nga item',
       body: 'Gisugyot sa {{store}} ang {{item}} isip puli. I-tap aron dawaton o isalikway.',
