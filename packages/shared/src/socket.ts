@@ -21,6 +21,10 @@ export const SocketEvent = {
   MERCHANT_ORDER_CANCELLED: 'merchant.order_cancelled',
   /** A scheduled order is due: start preparing (merchant room). */
   MERCHANT_ORDER_RELEASED: 'merchant.order_released',
+  /** A menu schedule window opened or closed: refetch the menu (merchant room). */
+  MERCHANT_MENU_CHANGED: 'merchant.menu_changed',
+  /** Weekly Verified badge evaluation granted or revoked the badge (merchant room). */
+  MERCHANT_BADGE_UPDATED: 'merchant.badge_updated',
   STORE_UPDATED: 'store.updated',
   PRODUCT_UPDATED: 'product.updated',
   SURGE_UPDATED: 'surge.updated',
@@ -91,6 +95,15 @@ export const socketEventSchemas = {
   ),
   [SocketEvent.MERCHANT_ORDER_RELEASED]: socketEnvelope(
     z.object({ orderId: idSchema, code: z.string(), scheduledFor: timestampSchema }),
+  ),
+  [SocketEvent.MERCHANT_MENU_CHANGED]: socketEnvelope(
+    z.object({
+      merchantId: idSchema,
+      changes: z.array(z.object({ scheduleId: idSchema, kind: z.enum(['start', 'end']) })),
+    }),
+  ),
+  [SocketEvent.MERCHANT_BADGE_UPDATED]: socketEnvelope(
+    z.object({ merchantId: idSchema, verifiedBadge: z.boolean(), failed: z.array(z.string()) }),
   ),
   [SocketEvent.STORE_UPDATED]: socketEnvelope(
     z.object({ isOpen: z.boolean(), pausedUntil: timestampSchema.nullable() }),

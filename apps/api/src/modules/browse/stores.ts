@@ -39,7 +39,6 @@ import {
   distanceTo,
   encodeKeyset,
   hasProductFilters,
-  loadSchedules,
   loadStores,
   notPaused,
   productConditions,
@@ -52,6 +51,7 @@ import {
   withTrigramSearch,
   zoneAt,
 } from './service.js';
+import { cachedSchedules } from '../catalog/menu-cache.js';
 
 const tags = ['browse'];
 const storeParams = z.object({ merchantId: z.uuid() });
@@ -254,7 +254,7 @@ export async function browseStoreRoutes(app: FastifyInstance): Promise<void> {
           where: { ...liveProductWhere(merchantId), categoryId: { not: null } },
           select: { id: true, categoryId: true },
         }),
-        loadSchedules(app.db, [merchantId]),
+        cachedSchedules(app.db, app.redis, [merchantId], req.log),
       ]);
       const counts = new Map<string, number>();
       for (const p of products) {
@@ -295,7 +295,7 @@ export async function browseStoreRoutes(app: FastifyInstance): Promise<void> {
       const q = req.query;
       const now = new Date();
       await assertActiveStore(app.db, merchantId);
-      const schedulesOf = await loadSchedules(app.db, [merchantId]);
+      const schedulesOf = await cachedSchedules(app.db, app.redis, [merchantId], req.log);
       const where: Prisma.ProductWhereInput = {
         AND: [
           liveProductWhere(merchantId),
@@ -350,7 +350,7 @@ export async function browseStoreRoutes(app: FastifyInstance): Promise<void> {
           where: { ...liveProductWhere(merchantId), id: productId },
           include: productInclude,
         }),
-        loadSchedules(app.db, [merchantId]),
+        cachedSchedules(app.db, app.redis, [merchantId], req.log),
       ]);
       if (!p || !isVisibleOnMenu(p, schedulesOf(merchantId), new Date())) {
         throw new AppError('NOT_FOUND', 'Product not found');

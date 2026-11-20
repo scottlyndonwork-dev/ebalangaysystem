@@ -25,7 +25,7 @@ import {
   type DeadLetter,
   type Queues,
 } from '../src/workers/queues.js';
-import { startWorkers, type WorkerRuntime } from '../src/workers/runtime.js';
+import { ScheduledJob, startWorkers, type WorkerRuntime } from '../src/workers/runtime.js';
 import { bearer, fixtures, must } from './fixtures.js';
 import { buildTestApp, testEnv } from './helpers.js';
 
@@ -201,6 +201,7 @@ describe('worker process', () => {
       connection,
       push: new MemoryPush(),
       sms: new MemorySms(),
+      storage: ctx.app.storage,
       log,
       outboxPollMs: 100,
       prefix,
@@ -253,12 +254,18 @@ describe('worker process', () => {
       connection,
       push: new MemoryPush(),
       sms: new MemorySms(),
+      storage: ctx.app.storage,
       log,
       outboxPollMs: 100,
       prefix,
     });
     await again.close();
     expect(await queues.outbox.getJobSchedulersCount()).toBe(1);
+    const scheduled = await queues.scheduled.getJobSchedulers();
+    expect(scheduled).toHaveLength(Object.values(ScheduledJob).length);
+    const badges = scheduled.find((j) => j.key === ScheduledJob.VERIFIED_BADGES);
+    expect(badges).toMatchObject({ pattern: '0 3 * * 1', tz: 'Asia/Manila' });
+    expect(badges?.template?.opts).toMatchObject({ attempts: 5 });
   });
 });
 

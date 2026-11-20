@@ -17,7 +17,6 @@ import {
   deliversTo,
   distanceTo,
   encodeKeyset,
-  loadSchedules,
   loadStores,
   notPaused,
   productConditions,
@@ -29,6 +28,7 @@ import {
   withTrigramSearch,
   zoneAt,
 } from './service.js';
+import { cachedSchedules } from '../catalog/menu-cache.js';
 
 const tags = ['browse'];
 
@@ -91,7 +91,7 @@ export async function searchRoutes(app: FastifyInstance): Promise<void> {
               include: productInclude,
             });
             const stores = await loadStores(tx, merchantIds, now);
-            const schedulesOf = await loadSchedules(tx, merchantIds);
+            const schedulesOf = await cachedSchedules(tx, app.redis, merchantIds, req.log);
             const byId = new Map(products.map((p) => [p.id, p]));
             return rows.map((row) => {
               const p = byId.get(row.id);

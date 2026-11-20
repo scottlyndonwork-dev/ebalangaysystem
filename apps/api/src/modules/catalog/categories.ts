@@ -16,6 +16,7 @@ import type { ZodTypeProvider } from '../../lib/zod-provider.js';
 import { requireMerchantPermission } from '../../plugins/auth.js';
 import { reorder } from './products.js';
 import { cursorArgs, pageOf } from './service.js';
+import { invalidateMenuCache } from './menu-cache.js';
 
 const tags = ['catalog'];
 const params = z.object({ merchantId: z.uuid() });
@@ -263,6 +264,7 @@ export async function categoryRoutes(app: FastifyInstance): Promise<void> {
           },
         });
       });
+      await invalidateMenuCache(app.redis, merchantId, req.log);
       return reply.status(201).send(toSchedule(s));
     },
   );
@@ -281,7 +283,7 @@ export async function categoryRoutes(app: FastifyInstance): Promise<void> {
     async (req) => {
       const { merchantId, scheduleId } = req.params;
       const body = req.body;
-      return withMerchantContext(app.db, merchantId, async (tx) => {
+      const updated = await withMerchantContext(app.db, merchantId, async (tx) => {
         await assertOwnIds(tx, merchantId, body.productIds, body.categoryIds);
         const { count } = await tx.menuSchedule.updateMany({
           where: { id: scheduleId, merchantId },
@@ -294,6 +296,8 @@ export async function categoryRoutes(app: FastifyInstance): Promise<void> {
         if (count === 0) throw new AppError('NOT_FOUND', 'Menu schedule not found');
         return toSchedule(await tx.menuSchedule.findUniqueOrThrow({ where: { id: scheduleId } }));
       });
+      await invalidateMenuCache(app.redis, merchantId, req.log);
+      return updated;
     },
   );
 
@@ -311,6 +315,7 @@ export async function categoryRoutes(app: FastifyInstance): Promise<void> {
         });
         if (count === 0) throw new AppError('NOT_FOUND', 'Menu schedule not found');
       });
+      await invalidateMenuCache(app.redis, merchantId, req.log);
       return reply.status(204).send(null);
     },
   );

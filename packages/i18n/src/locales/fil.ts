@@ -182,6 +182,14 @@ export const fil: Resources = {
       title: 'Nilaktawan ang paulit-ulit na order',
       body: 'Hindi namin na-order ang paulit-ulit mong order mula sa {{store}} ngayon. Susunod: {{time}}.', // TODO(native-review)
     },
+    verifiedBadgeGranted: {
+      title: 'Verified ka na',
+      body: 'Nakuha ng {{store}} ang Verified badge dahil sa mahusay na serbisyo. Ituloy lang!', // TODO(native-review)
+    },
+    verifiedBadgeRevoked: {
+      title: 'Inalis ang Verified badge',
+      body: 'Hindi na naaabot ng {{store}} ang mga kailangan para sa Verified badge. Susuriin ulit tuwing Lunes.', // TODO(native-review)
+    },
     replacementProposed: {
       title: 'Kapalit na item',
       body: 'Iminumungkahi ng {{store}} ang {{item}} bilang kapalit. I-tap para tanggapin o tanggihan.',

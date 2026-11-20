@@ -3,6 +3,10 @@ import type { Logger } from 'pino';
 import type { Db } from '../db.js';
 import type { PushSender } from '../lib/push.js';
 import type { SmsSender } from '../lib/sms.js';
+import type { Storage } from '../lib/storage.js';
+import { refreshAnalyticsViews } from '../modules/analytics/refresh.js';
+import { menuBoundaryTick } from '../modules/catalog/menu-cache.js';
+import { evaluateVerifiedBadges } from '../modules/merchants/verified-badge.js';
 import { pushJobSchema } from '../modules/notifications/payload.js';
 import {
   checkReceipts,
@@ -12,6 +16,8 @@ import {
 } from '../modules/notifications/service.js';
 import { releaseScheduledOrders } from '../modules/orders/release.js';
 import { sweepStaleOrders } from '../modules/orders/sweeper.js';
+import { expirePoints } from '../modules/points/expiry.js';
+import { expireStories } from '../modules/stories/expiry.js';
 import { runSubscriptions } from '../modules/subscriptions/run.js';
 import { flushBreadcrumbs } from '../modules/tracking/breadcrumbs.js';
 import type { RedisClient } from '../redis.js';
@@ -28,14 +34,35 @@ export const ScheduledJob = {
   RELEASE_SCHEDULED_ORDERS: 'release-scheduled-orders',
   SWEEP_STALE_ORDERS: 'sweep-stale-orders',
   RUN_SUBSCRIPTIONS: 'run-subscriptions',
+  EXPIRE_STORIES: 'expire-stories',
+  MENU_BOUNDARIES: 'menu-boundaries',
+  EXPIRE_POINTS: 'expire-points',
+  REFRESH_ANALYTICS: 'refresh-analytics',
+  VERIFIED_BADGES: 'verified-badges',
 } as const;
 export type ScheduledJob = (typeof ScheduledJob)[keyof typeof ScheduledJob];
 
-export const SCHEDULED_EVERY_MS: Record<ScheduledJob, number> = {
+/** Interval jobs: a failed tick is retried by the next one. */
+export const SCHEDULED_EVERY_MS: Partial<Record<ScheduledJob, number>> = {
   [ScheduledJob.RELEASE_SCHEDULED_ORDERS]: 60_000,
   [ScheduledJob.SWEEP_STALE_ORDERS]: 60_000,
   [ScheduledJob.RUN_SUBSCRIPTIONS]: 5 * 60_000,
+  [ScheduledJob.EXPIRE_STORIES]: 5 * 60_000,
 };
+
+export const SCHEDULE_TZ = 'Asia/Manila';
+
+/** Cron jobs (Manila wall clock). `retry` jobs back off and are dead-lettered after the last try. */
+export const SCHEDULED_CRON: Partial<Record<ScheduledJob, { pattern: string; retry: boolean }>> = {
+  // On the minute, so menu windows flip close to their HH:mm.
+  [ScheduledJob.MENU_BOUNDARIES]: { pattern: '* * * * *', retry: false },
+  [ScheduledJob.REFRESH_ANALYTICS]: { pattern: '0 0 * * *', retry: true },
+  [ScheduledJob.EXPIRE_POINTS]: { pattern: '15 0 * * *', retry: true },
+  [ScheduledJob.VERIFIED_BADGES]: { pattern: '0 3 * * 1', retry: true },
+};
+
+/** Daily/weekly jobs: 5 tries over ~30 min (1, 2, 4, 8, 16 min). */
+export const CRON_RETRY = { attempts: 5, backoff: { type: 'exponential', delay: 60_000 } } as const;
 
 export interface WorkerDeps {
   db: Db;
@@ -47,6 +74,8 @@ export interface WorkerDeps {
   push: PushSender;
   /** Critical-alert SMS (rider nearby, delivered, COD reminder). */
   sms: SmsSender;
+  /** Story media cleanup. */
+  storage: Storage;
   log: Logger;
   outboxPollMs: number;
   breadcrumbFlushMs?: number;
@@ -121,6 +150,16 @@ export async function startWorkers(deps: WorkerDeps): Promise<WorkerRuntime> {
           return sweepStaleOrders({ db, redis: deps.redis, log });
         case ScheduledJob.RUN_SUBSCRIPTIONS:
           return runSubscriptions({ db, log });
+        case ScheduledJob.EXPIRE_STORIES:
+          return expireStories({ db, storage: deps.storage, log });
+        case ScheduledJob.MENU_BOUNDARIES:
+          return menuBoundaryTick({ db, redis: deps.redis, log });
+        case ScheduledJob.EXPIRE_POINTS:
+          return expirePoints(db);
+        case ScheduledJob.REFRESH_ANALYTICS:
+          return refreshAnalyticsViews(db);
+        case ScheduledJob.VERIFIED_BADGES:
+          return evaluateVerifiedBadges({ db, log });
         default:
           throw new UnrecoverableError(`unknown scheduled job ${job.name}`);
       }
@@ -161,6 +200,14 @@ export async function startWorkers(deps: WorkerDeps): Promise<WorkerRuntime> {
       name,
       { every: deps.scheduledEveryMs?.[name as ScheduledJob] ?? every },
       { name },
+    );
+  }
+  for (const [name, cron] of Object.entries(SCHEDULED_CRON)) {
+    const every = deps.scheduledEveryMs?.[name as ScheduledJob];
+    await queues.scheduled.upsertJobScheduler(
+      name,
+      every ? { every } : { pattern: cron.pattern, tz: SCHEDULE_TZ },
+      { name, ...(cron.retry ? { opts: CRON_RETRY } : {}) },
     );
   }
 

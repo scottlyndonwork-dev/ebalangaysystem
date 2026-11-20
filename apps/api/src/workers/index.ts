@@ -4,6 +4,7 @@ import { assertExtensions, createDb } from '../db.js';
 import { loadEnv } from '../env.js';
 import { createPushSender } from '../lib/push.js';
 import { createSmsSender } from '../lib/sms.js';
+import { createStorage } from '../lib/storage.js';
 import { initSentry } from '../plugins/sentry.js';
 import { createRedis } from '../redis.js';
 import { createSocketEmitter } from './emitter.js';
@@ -43,6 +44,7 @@ const runtime = await startWorkers({
   connection,
   push: createPushSender(env),
   sms: createSmsSender(env),
+  storage: createStorage(env),
   log,
   outboxPollMs: env.OUTBOX_POLL_MS,
 });

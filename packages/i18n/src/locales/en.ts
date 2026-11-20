@@ -179,6 +179,14 @@ export const en = {
       title: 'Repeat order skipped',
       body: "We couldn't place your repeat order from {{store}} this time. Next one: {{time}}.",
     },
+    verifiedBadgeGranted: {
+      title: 'You are now Verified',
+      body: '{{store}} earned the Verified badge for great service. Keep it up!',
+    },
+    verifiedBadgeRevoked: {
+      title: 'Verified badge removed',
+      body: '{{store}} no longer meets the Verified badge requirements. It is checked again every Monday.',
+    },
     replacementProposed: {
       title: 'Item replacement',
       body: '{{store}} suggests {{item}} instead. Tap to accept or decline.',

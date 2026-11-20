@@ -182,6 +182,14 @@ export const ceb: Resources = {
       title: 'Gilaktawan ang balik-balik nga order',
       body: 'Wala namo ma-order ang imong balik-balik nga order gikan sa {{store}} karon. Sunod: {{time}}.', // TODO(native-review)
     },
+    verifiedBadgeGranted: {
+      title: 'Verified na ka',
+      body: 'Nakuha sa {{store}} ang Verified badge tungod sa maayong serbisyo. Padayon!', // TODO(native-review)
+    },
+    verifiedBadgeRevoked: {
+      title: 'Gikuha ang Verified badge',
+      body: 'Dili na maabot sa {{store}} ang mga kinahanglan sa Verified badge. Susihon pag-usab matag Lunes.', // TODO(native-review)
+    },
     replacementProposed: {
       title: 'Puli nga item',
       body: 'Gisugyot sa {{store}} ang {{item}} isip puli. I-tap aron dawaton o isalikway.',
