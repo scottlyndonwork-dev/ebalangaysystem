@@ -64,7 +64,7 @@ describe('config', () => {
 
   it('enforces production guards', () => {
     expect(() => testEnv({ NODE_ENV: 'production' })).toThrow(
-      /SMS_DRIVER[\s\S]*ADMIN_IP_ALLOWLIST/,
+      /SMS_DRIVER[\s\S]*PUSH_DRIVER[\s\S]*ADMIN_IP_ALLOWLIST/,
     );
   });
 
@@ -73,6 +73,7 @@ describe('config', () => {
       NODE_ENV: 'production',
       SMS_DRIVER: 'semaphore',
       SEMAPHORE_API_KEY: 'k',
+      PUSH_DRIVER: 'expo',
       ADMIN_IP_ALLOWLIST: '10.0.0.0/8',
       CORS_ORIGINS: 'https://admin.ebalangay.ph',
       STORAGE_DRIVER: 'r2',

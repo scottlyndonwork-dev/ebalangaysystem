@@ -146,8 +146,21 @@ export const en = {
   notifications: {
     orderConfirmed: { title: 'Order confirmed', body: '{{store}} is getting your order ready.' },
     orderPickedUp: { title: 'On the way', body: 'Your rider picked up your order.' },
-    riderNearby: { title: 'Rider is nearby', body: 'Your order is almost there.' },
-    orderDelivered: { title: 'Delivered', body: 'Enjoy! Tap to rate your order.' },
+    riderNearby: {
+      title: 'Rider is nearby',
+      body: 'Your order is almost there.',
+      sms: 'eBalangay: Your rider is almost there with order {{code}}.',
+    },
+    orderDelivered: {
+      title: 'Delivered',
+      body: 'Enjoy! Tap to rate your order.',
+      sms: 'eBalangay: Order {{code}} was delivered. Thank you!',
+    },
+    codReminder: {
+      title: 'Prepare your payment',
+      body: 'Your rider is on the way with order {{code}}. Please prepare {{amount}} cash.',
+      sms: 'eBalangay: Your rider is on the way with order {{code}}. Please prepare {{amount}} cash.',
+    },
     orderCancelled: { title: 'Order cancelled', body: 'Order {{code}} was cancelled.' },
     newOrder: { title: 'New order', body: 'Order {{code}}: {{count}} item(s).' },
     replacementProposed: {

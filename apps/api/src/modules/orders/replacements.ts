@@ -50,6 +50,8 @@ async function bumpAndAnnounce(
             titleKey: 'notifications:replacementProposed.title',
             bodyKey: 'notifications:replacementProposed.body',
             params: push.params,
+            category: 'order',
+            app: 'customer',
           },
         }
       : {}),

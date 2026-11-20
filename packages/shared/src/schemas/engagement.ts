@@ -137,6 +137,40 @@ export const markNotificationsReadInputSchema = z.object({
 });
 export type MarkNotificationsReadInput = z.infer<typeof markNotificationsReadInputSchema>;
 
+export const markNotificationsReadResultSchema = z.object({ updated: z.number().int() });
+export const unreadNotificationsSchema = z.object({ count: z.number().int().nonnegative() });
+
+/** One row per category; categories without a stored row are reported with every channel on. */
+export const notificationPreferenceSchema = z.object({
+  category: notificationTypeSchema,
+  push: z.boolean(),
+  sms: z.boolean(),
+  inApp: z.boolean(),
+});
+export type NotificationPreference = z.infer<typeof notificationPreferenceSchema>;
+export const notificationPreferencesSchema = z.object({
+  preferences: z.array(notificationPreferenceSchema),
+});
+
+/** Omitted channels keep their current value. OTP SMS ignores preferences. */
+export const updateNotificationPreferencesInputSchema = z.object({
+  preferences: z
+    .array(
+      z.object({
+        category: notificationTypeSchema,
+        push: z.boolean().optional(),
+        sms: z.boolean().optional(),
+        inApp: z.boolean().optional(),
+      }),
+    )
+    .min(1)
+    .max(10)
+    .refine((p) => new Set(p.map((x) => x.category)).size === p.length, 'Duplicate category'),
+});
+export type UpdateNotificationPreferencesInput = z.infer<
+  typeof updateNotificationPreferencesInputSchema
+>;
+
 export const registerPushTokenInputSchema = z.object({
   token: z.string().min(1).max(4096),
   platform: z.enum(['ios', 'android', 'web']),

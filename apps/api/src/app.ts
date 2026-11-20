@@ -17,6 +17,7 @@ import { cartRoutes } from './modules/carts/routes.js';
 import { merchantRoutes } from './modules/merchants/routes.js';
 import { meStoreRoutes, storeRoutes } from './modules/stores/routes.js';
 import { meRoutes } from './modules/users/routes.js';
+import { notificationRoutes } from './modules/notifications/routes.js';
 import { orderChatRoutes } from './modules/orders/chat.js';
 import { merchantOrderRoutes } from './modules/orders/merchant-routes.js';
 import { riderOrderRoutes } from './modules/orders/rider-routes.js';
@@ -118,6 +119,7 @@ export async function buildApp({
   await app.register(authRoutes, { prefix: '/v1/auth' });
   await app.register(meRoutes, { prefix: '/v1/me' });
   await app.register(meStoreRoutes, { prefix: '/v1/me' });
+  await app.register(notificationRoutes, { prefix: '/v1/me/notifications' });
   await app.register(merchantRoutes, { prefix: '/v1/merchants' });
   await app.register(catalogRoutes, { prefix: '/v1/merchants' });
   await app.register(storeRoutes, { prefix: '/v1/stores' });

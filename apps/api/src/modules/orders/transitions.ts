@@ -5,6 +5,7 @@
  */
 import {
   canTransition,
+  formatCentavos,
   type OrderActor,
   type OrderStatus,
   Rooms,
@@ -51,6 +52,11 @@ const CUSTOMER_PUSH: Partial<Record<OrderStatus, string>> = {
   delivered: 'orderDelivered',
   cancelled: 'orderCancelled',
   failed: 'orderCancelled',
+};
+/** Critical alerts that also go out by SMS (cost: one Semaphore credit each). */
+const CUSTOMER_SMS: Partial<Record<OrderStatus, string>> = {
+  rider_nearby: 'riderNearby',
+  delivered: 'orderDelivered',
 };
 
 export interface TransitionRequest {
@@ -161,7 +167,10 @@ export async function announceStatus(
     where: { id: o.merchantId },
     select: { name: true },
   });
-  const pushKey = CUSTOMER_PUSH[o.status];
+  // COD: the picked-up push becomes the cash reminder (push + SMS).
+  const cod = o.status === 'picked_up' && o.paymentMethod === 'cod';
+  const pushKey = cod ? 'codReminder' : CUSTOMER_PUSH[o.status];
+  const smsKey = cod ? 'codReminder' : CUSTOMER_SMS[o.status];
   // Customers don't need a push for a change they made themselves.
   const notifyCustomer = pushKey && o.customerId && actor !== 'customer';
   await writeOutbox(tx, {
@@ -181,7 +190,15 @@ export async function announceStatus(
             userIds: [o.customerId],
             titleKey: `notifications:${pushKey}.title`,
             bodyKey: `notifications:${pushKey}.body`,
-            params: { store: merchant?.name ?? '', code: o.code },
+            params: {
+              store: merchant?.name ?? '',
+              code: o.code,
+              amount: formatCentavos(Number(o.totalCentavos)),
+            },
+            category: 'order',
+            app: 'customer',
+            dedupeKey: `order:${o.id}:${o.status}`,
+            ...(smsKey ? { smsKey: `notifications:${smsKey}.sms` } : {}),
           },
         }
       : {}),
@@ -200,6 +217,9 @@ export async function announceStatus(
         titleKey: 'notifications:newOrder.title',
         bodyKey: 'notifications:newOrder.body',
         params: { code: o.code, count: itemCount },
+        category: 'order',
+        app: 'merchant',
+        dedupeKey: `order:${o.id}:new`,
       },
     });
   }

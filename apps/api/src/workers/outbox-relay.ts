@@ -1,7 +1,7 @@
 import type { Queue } from 'bullmq';
 import type { Logger } from 'pino';
-import { z } from 'zod';
 import type { Db } from '../db.js';
+import { outboxPushSchema, type PushJob } from '../modules/notifications/payload.js';
 import type { DeadLetter } from './queues.js';
 import type { SocketEmitter } from './emitter.js';
 
@@ -13,16 +13,6 @@ const MAX_PASSES = 10;
 export const MAX_EVENT_ATTEMPTS = 10;
 /** pg advisory lock key: one relay at a time across all worker replicas. */
 export const RELAY_LOCK_KEY = 7_201_001;
-
-const pushSchema = z.object({
-  userIds: z.array(z.uuid()).min(1),
-  titleKey: z.string().min(1),
-  bodyKey: z.string().min(1),
-  params: z.record(z.string(), z.union([z.string(), z.number()])).optional(),
-});
-
-/** Job data on the notifications queue (processor lands in 2C-4). */
-export type PushJob = z.infer<typeof pushSchema> & { eventId: string; event: string };
 
 export const pushJobId = (eventId: string) => `push-${eventId}`;
 
@@ -74,9 +64,15 @@ export async function relayOutboxOnce(
 
       for (const row of rows) {
         try {
-          const push = row.push === null ? null : pushSchema.parse(row.push);
+          const push = row.push === null ? null : outboxPushSchema.parse(row.push);
           if (push) {
-            const job: PushJob = { ...push, eventId: row.id, event: row.event };
+            const job: PushJob = {
+              ...push,
+              eventId: row.id,
+              event: row.event,
+              entityType: row.aggregateType,
+              entityId: row.aggregateId,
+            };
             await deps.notifications.add('push', job, { jobId: pushJobId(row.id) });
           }
           deps.emitter.emit(row.rooms, row.event, {

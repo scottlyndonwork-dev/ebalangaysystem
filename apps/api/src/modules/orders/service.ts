@@ -10,6 +10,7 @@ import {
 import type { Db, Tx } from '../../db.js';
 import type { Prisma } from '../../generated/prisma/client.js';
 import { AppError } from '../../lib/errors.js';
+import type { OutboxPush } from '../notifications/payload.js';
 
 export const orderInclude = {
   items: { orderBy: [{ id: 'asc' }] },
@@ -138,12 +139,7 @@ export interface OutboxInput {
   version: number;
   data: Record<string, unknown>;
   rooms: string[];
-  push?: {
-    userIds: string[];
-    titleKey: string;
-    bodyKey: string;
-    params?: Record<string, string | number>;
-  };
+  push?: OutboxPush;
 }
 
 /** Written in the same transaction as the change; the relay worker (2C) delivers it after commit. */

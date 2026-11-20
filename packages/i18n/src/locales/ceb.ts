@@ -149,8 +149,21 @@ export const ceb: Resources = {
       body: 'Giandam na sa {{store}} ang imong order.',
     },
     orderPickedUp: { title: 'Padulong na', body: 'Nakuha na sa rider ang imong order.' },
-    riderNearby: { title: 'Duol na ang rider', body: 'Hapit na moabot ang imong order.' },
-    orderDelivered: { title: 'Nahatod na', body: 'Enjoy! I-tap aron i-rate ang imong order.' },
+    riderNearby: {
+      title: 'Duol na ang rider',
+      body: 'Hapit na moabot ang imong order.',
+      sms: 'eBalangay: Duol na ang imong rider dala ang order {{code}}.', // TODO(native-review)
+    },
+    orderDelivered: {
+      title: 'Nahatod na',
+      body: 'Enjoy! I-tap aron i-rate ang imong order.',
+      sms: 'eBalangay: Nahatod na ang order {{code}}. Salamat!', // TODO(native-review)
+    },
+    codReminder: {
+      title: 'Andama ang bayad',
+      body: 'Padulong na ang rider dala ang order {{code}}. Palihug andama ang {{amount}} nga cash.', // TODO(native-review)
+      sms: 'eBalangay: Padulong na ang rider dala ang order {{code}}. Palihug andama ang {{amount}} nga cash.', // TODO(native-review)
+    },
     orderCancelled: { title: 'Gikansela ang order', body: 'Gikansela ang order {{code}}.' },
     newOrder: { title: 'Bag-ong order', body: 'Order {{code}}: {{count}} ka item.' },
     replacementProposed: {

@@ -1,6 +1,15 @@
-import { type ConnectionOptions, Worker } from 'bullmq';
+import { type ConnectionOptions, UnrecoverableError, Worker } from 'bullmq';
 import type { Logger } from 'pino';
 import type { Db } from '../db.js';
+import type { PushSender } from '../lib/push.js';
+import type { SmsSender } from '../lib/sms.js';
+import { pushJobSchema } from '../modules/notifications/payload.js';
+import {
+  checkReceipts,
+  deliverPush,
+  RECEIPTS_JOB,
+  type ReceiptsJob,
+} from '../modules/notifications/service.js';
 import { flushBreadcrumbs } from '../modules/tracking/breadcrumbs.js';
 import type { RedisClient } from '../redis.js';
 import type { SocketEmitter } from './emitter.js';
@@ -18,6 +27,9 @@ export interface WorkerDeps {
   queues: Queues;
   emitter: SocketEmitter;
   connection: ConnectionOptions;
+  push: PushSender;
+  /** Critical-alert SMS (rider nearby, delivered, COD reminder). */
+  sms: SmsSender;
   log: Logger;
   outboxPollMs: number;
   breadcrumbFlushMs?: number;
@@ -63,7 +75,24 @@ export async function startWorkers(deps: WorkerDeps): Promise<WorkerRuntime> {
     { ...base, concurrency: 1 },
   );
 
-  const workers = [outbox, breadcrumbs];
+  const notifications = new Worker(
+    QueueName.NOTIFICATIONS,
+    async (job) => {
+      if (job.name === RECEIPTS_JOB) {
+        return checkReceipts({ db, push: deps.push }, job.data as ReceiptsJob);
+      }
+      const data = pushJobSchema.safeParse(job.data);
+      // Retrying can't fix bad data: straight to the dead-letter queue.
+      if (!data.success) throw new UnrecoverableError(`invalid push job: ${data.error.message}`);
+      return deliverPush(
+        { db, redis: deps.redis, push: deps.push, sms: deps.sms, queue: queues.notifications, log },
+        data.data,
+      );
+    },
+    { ...base, concurrency: 10 },
+  );
+
+  const workers = [outbox, breadcrumbs, notifications];
   for (const w of workers)
     w.on('error', (err) => log.error({ err, queue: w.name }, 'worker error'));
   // Ticks of a schedule aren't dead-lettered: the next tick is the retry.

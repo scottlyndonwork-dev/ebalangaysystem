@@ -201,6 +201,8 @@ export async function orderChatRoutes(app: FastifyInstance): Promise<void> {
                   titleKey: 'notifications:chatMessage.title',
                   bodyKey: 'notifications:chatMessage.body',
                   params: { from: p.name, text: body.slice(0, 120) },
+                  category: 'order',
+                  app: otherSide === 'rider' ? 'rider' : 'customer',
                 },
               }
             : {}),

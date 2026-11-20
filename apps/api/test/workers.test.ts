@@ -6,6 +6,8 @@ import { pino } from 'pino';
 import { io as connect, type Socket } from 'socket.io-client';
 import request from 'supertest';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { MemoryPush } from '../src/lib/push.js';
+import { MemorySms } from '../src/lib/sms.js';
 import { createSocketEmitter, type SocketEmitter } from '../src/workers/emitter.js';
 import {
   MAX_EVENT_ATTEMPTS,
@@ -197,6 +199,8 @@ describe('worker process', () => {
       queues,
       emitter,
       connection,
+      push: new MemoryPush(),
+      sms: new MemorySms(),
       log,
       outboxPollMs: 100,
       prefix,
@@ -247,6 +251,8 @@ describe('worker process', () => {
       queues,
       emitter,
       connection,
+      push: new MemoryPush(),
+      sms: new MemorySms(),
       log,
       outboxPollMs: 100,
       prefix,

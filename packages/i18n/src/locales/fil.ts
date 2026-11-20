@@ -149,8 +149,21 @@ export const fil: Resources = {
       body: 'Inihahanda na ng {{store}} ang order mo.',
     },
     orderPickedUp: { title: 'Papunta na', body: 'Nakuha na ng rider ang order mo.' },
-    riderNearby: { title: 'Malapit na ang rider', body: 'Malapit na ang order mo.' },
-    orderDelivered: { title: 'Naihatid na', body: 'Enjoy! I-tap para i-rate ang order mo.' },
+    riderNearby: {
+      title: 'Malapit na ang rider',
+      body: 'Malapit na ang order mo.',
+      sms: 'eBalangay: Malapit na ang rider mo dala ang order {{code}}.', // TODO(native-review)
+    },
+    orderDelivered: {
+      title: 'Naihatid na',
+      body: 'Enjoy! I-tap para i-rate ang order mo.',
+      sms: 'eBalangay: Naihatid na ang order {{code}}. Salamat!', // TODO(native-review)
+    },
+    codReminder: {
+      title: 'Ihanda ang bayad',
+      body: 'Papunta na ang rider dala ang order {{code}}. Pakihanda ang {{amount}} na cash.', // TODO(native-review)
+      sms: 'eBalangay: Papunta na ang rider dala ang order {{code}}. Pakihanda ang {{amount}} na cash.', // TODO(native-review)
+    },
     orderCancelled: { title: 'Kinansela ang order', body: 'Kinansela ang order {{code}}.' },
     newOrder: { title: 'Bagong order', body: 'Order {{code}}: {{count}} item.' },
     replacementProposed: {

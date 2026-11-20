@@ -68,6 +68,11 @@ const envSchema = z
     SEMAPHORE_API_KEY: z.string().optional(),
     SEMAPHORE_SENDER_NAME: z.string().default('EBALANGAY'),
 
+    // Push (Expo push service). `console` prints instead of sending.
+    PUSH_DRIVER: z.enum(['console', 'expo']).default('console'),
+    /** Optional; required only if "enhanced push security" is on in the Expo project. */
+    EXPO_ACCESS_TOKEN: z.string().optional(),
+
     // Object storage (Cloudflare R2, S3 API). `memory` = in-process fake for dev/tests.
     STORAGE_DRIVER: z.enum(['memory', 'r2']).default('memory'),
     R2_ACCOUNT_ID: z.string().optional(),
@@ -99,6 +104,13 @@ const envSchema = z
           code: 'custom',
           path: ['SMS_DRIVER'],
           message: 'Must be semaphore in production',
+        });
+      }
+      if (env.PUSH_DRIVER !== 'expo') {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['PUSH_DRIVER'],
+          message: 'Must be expo in production',
         });
       }
       if (env.ADMIN_IP_ALLOWLIST.length === 0) {
