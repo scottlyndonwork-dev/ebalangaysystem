@@ -163,6 +163,22 @@ export const en = {
     },
     orderCancelled: { title: 'Order cancelled', body: 'Order {{code}} was cancelled.' },
     newOrder: { title: 'New order', body: 'Order {{code}}: {{count}} item(s).' },
+    scheduledRelease: {
+      title: 'Start preparing',
+      body: 'Scheduled order {{code}} is due at {{time}}.',
+    },
+    scheduledUnconfirmed: {
+      title: 'Scheduled order waiting',
+      body: 'Accept scheduled order {{code}} (due {{time}}) or it will be cancelled.',
+    },
+    subscriptionPlaced: {
+      title: 'Repeat order placed',
+      body: 'Your repeat order from {{store}} is scheduled for {{time}}.',
+    },
+    subscriptionSkipped: {
+      title: 'Repeat order skipped',
+      body: "We couldn't place your repeat order from {{store}} this time. Next one: {{time}}.",
+    },
     replacementProposed: {
       title: 'Item replacement',
       body: '{{store}} suggests {{item}} instead. Tap to accept or decline.',

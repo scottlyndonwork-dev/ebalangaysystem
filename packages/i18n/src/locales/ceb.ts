@@ -166,6 +166,22 @@ export const ceb: Resources = {
     },
     orderCancelled: { title: 'Gikansela ang order', body: 'Gikansela ang order {{code}}.' },
     newOrder: { title: 'Bag-ong order', body: 'Order {{code}}: {{count}} ka item.' },
+    scheduledRelease: {
+      title: 'Sugdi na ang pag-andam',
+      body: 'Ang scheduled order {{code}} para sa {{time}}.',
+    }, // TODO(native-review)
+    scheduledUnconfirmed: {
+      title: 'Naghulat ang scheduled order',
+      body: 'Dawata ang scheduled order {{code}} (para sa {{time}}) kay kon dili, kanselahon kini.', // TODO(native-review)
+    },
+    subscriptionPlaced: {
+      title: 'Na-order na ang balik-balik nga order',
+      body: 'Naka-schedule ang imong balik-balik nga order gikan sa {{store}} sa {{time}}.', // TODO(native-review)
+    },
+    subscriptionSkipped: {
+      title: 'Gilaktawan ang balik-balik nga order',
+      body: 'Wala namo ma-order ang imong balik-balik nga order gikan sa {{store}} karon. Sunod: {{time}}.', // TODO(native-review)
+    },
     replacementProposed: {
       title: 'Puli nga item',
       body: 'Gisugyot sa {{store}} ang {{item}} isip puli. I-tap aron dawaton o isalikway.',

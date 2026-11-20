@@ -107,3 +107,16 @@ export function formatManila(
     toDate(date),
   );
 }
+
+const SHORT_DATE_TIME = new Intl.DateTimeFormat('en-PH', {
+  timeZone: DISPLAY_TIME_ZONE,
+  month: 'short',
+  day: 'numeric',
+  hour: 'numeric',
+  minute: '2-digit',
+});
+
+/** e.g. "Nov 21, 10:30 AM" in Manila time, for push/SMS text params. */
+export function formatManilaShort(date: DateInput): string {
+  return SHORT_DATE_TIME.format(toDate(date));
+}

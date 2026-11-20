@@ -10,6 +10,7 @@ import {
 import type { Db, Tx } from '../../db.js';
 import type { Prisma } from '../../generated/prisma/client.js';
 import { AppError } from '../../lib/errors.js';
+import { writeEvent } from '../../lib/outbox.js';
 import type { OutboxPush } from '../notifications/payload.js';
 
 export const orderInclude = {
@@ -142,24 +143,10 @@ export interface OutboxInput {
   push?: OutboxPush;
 }
 
-/** Written in the same transaction as the change; the relay worker (2C) delivers it after commit. */
+/** Written in the same transaction as the change; the relay worker delivers it after commit. */
 export async function writeOutbox(tx: Tx, e: OutboxInput): Promise<void> {
-  await tx.outboxEvent.create({
-    data: {
-      event: e.event,
-      aggregateType: 'order',
-      aggregateId: e.orderId,
-      version: e.version,
-      payload: {
-        id: e.orderId,
-        version: e.version,
-        occurredAt: new Date().toISOString(),
-        data: e.data,
-      } as Prisma.InputJsonValue,
-      rooms: [...new Set(e.rooms)],
-      ...(e.push && e.push.userIds.length ? { push: e.push as Prisma.InputJsonValue } : {}),
-    },
-  });
+  const { orderId, ...rest } = e;
+  await writeEvent(tx, { ...rest, aggregateType: 'order', aggregateId: orderId });
 }
 
 /** Rooms everyone involved in an order listens on. */

@@ -26,6 +26,8 @@ model Order {
   /// Gift orders: hide prices from the recipient (receipt, rider app).
   giftHidePrices                   Boolean                                @default(false) @map("gift_hide_prices")
   scheduledFor                     DateTime?                              @map("scheduled_for") @db.Timestamptz(3)
+  /// Scheduled orders: when the release worker told the merchant to start preparing.
+  releasedAt                       DateTime?                              @map("released_at") @db.Timestamptz(3)
   notes                            String?
   subtotalCentavos                 BigInt                                 @map("subtotal_centavos")
   deliveryFeeCentavos              BigInt                                 @default(0) @map("delivery_fee_centavos")
@@ -105,6 +107,7 @@ model Order {
   @@index([subscriptionOrderId])
   @@index([voucherId])
   @@index([scheduledFor])
+  @@index([releasedAt, scheduledFor])
   @@index([dropoffLocation], type: Gist)
   @@map("orders")
 }

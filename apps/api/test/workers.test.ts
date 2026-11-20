@@ -317,7 +317,13 @@ describe('bull board', () => {
       .expect(200);
     const names = (list.body as { queues: { name: string; readOnlyMode: boolean }[] }).queues;
     expect(names.map((q) => q.name).sort()).toEqual(
-      ['dead-letter', 'notifications', 'outbox-relay', 'rider-breadcrumbs'].sort(),
+      [
+        'dead-letter',
+        'notifications',
+        'outbox-relay',
+        'rider-breadcrumbs',
+        'scheduled-jobs',
+      ].sort(),
     );
     expect(names.every((q) => q.readOnlyMode)).toBe(true);
   });

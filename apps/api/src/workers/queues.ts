@@ -6,6 +6,8 @@ export const QueueName = {
   NOTIFICATIONS: 'notifications',
   /** Batch-writes queued rider breadcrumbs to Postgres every 60s. */
   BREADCRUMBS: 'rider-breadcrumbs',
+  /** Periodic housekeeping (scheduled-order release, stale sweeper, subscriptions, ...). */
+  SCHEDULED: 'scheduled-jobs',
   /** Jobs that failed every attempt land here for inspection (Bull Board). No consumer. */
   DEAD_LETTER: 'dead-letter',
 } as const;
@@ -40,6 +42,7 @@ export interface Queues {
   outbox: Queue;
   notifications: Queue;
   breadcrumbs: Queue;
+  scheduled: Queue;
   deadLetter: Queue;
 }
 
@@ -57,6 +60,13 @@ export function createQueues(connection: ConnectionOptions, prefix?: string): Qu
       removeOnComplete: true,
       removeOnFail: 100,
     }),
+    // Frequent ticks run once (the next tick is the retry); daily/weekly jobs opt into retries
+    // in their scheduler template and are dead-lettered after the last attempt.
+    scheduled: make(QueueName.SCHEDULED, {
+      attempts: 1,
+      removeOnComplete: { age: 24 * 3600, count: 500 },
+      removeOnFail: { age: 7 * 24 * 3600 },
+    }),
     deadLetter: make(QueueName.DEAD_LETTER, { removeOnComplete: { age: 30 * 24 * 3600 } }),
   };
 }
@@ -65,6 +75,7 @@ export const allQueues = (q: Queues): Queue[] => [
   q.outbox,
   q.notifications,
   q.breadcrumbs,
+  q.scheduled,
   q.deadLetter,
 ];
 
@@ -88,9 +99,14 @@ export function isFinalFailure(job: Job, err: Error): boolean {
 }
 
 /** Copies a job to the dead-letter queue after its last attempt fails. */
-export function attachDeadLetter(worker: Worker, deadLetter: Queue, log: Logger): void {
+export function attachDeadLetter(
+  worker: Worker,
+  deadLetter: Queue,
+  log: Logger,
+  shouldDeadLetter: (job: Job) => boolean = () => true,
+): void {
   worker.on('failed', (job, err) => {
-    if (!job || !isFinalFailure(job, err)) return;
+    if (!job || !isFinalFailure(job, err) || !shouldDeadLetter(job)) return;
     const entry: DeadLetter = {
       queue: worker.name,
       jobId: job.id ?? null,

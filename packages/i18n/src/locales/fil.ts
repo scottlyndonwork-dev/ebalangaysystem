@@ -166,6 +166,22 @@ export const fil: Resources = {
     },
     orderCancelled: { title: 'Kinansela ang order', body: 'Kinansela ang order {{code}}.' },
     newOrder: { title: 'Bagong order', body: 'Order {{code}}: {{count}} item.' },
+    scheduledRelease: {
+      title: 'Simulan ang paghahanda',
+      body: 'Ang scheduled order {{code}} ay para sa {{time}}.',
+    }, // TODO(native-review)
+    scheduledUnconfirmed: {
+      title: 'Naghihintay ang scheduled order',
+      body: 'Tanggapin ang scheduled order {{code}} (para sa {{time}}) o makakansela ito.', // TODO(native-review)
+    },
+    subscriptionPlaced: {
+      title: 'Na-order na ang paulit-ulit na order',
+      body: 'Naka-schedule ang paulit-ulit mong order mula sa {{store}} sa {{time}}.', // TODO(native-review)
+    },
+    subscriptionSkipped: {
+      title: 'Nilaktawan ang paulit-ulit na order',
+      body: 'Hindi namin na-order ang paulit-ulit mong order mula sa {{store}} ngayon. Susunod: {{time}}.', // TODO(native-review)
+    },
     replacementProposed: {
       title: 'Kapalit na item',
       body: 'Iminumungkahi ng {{store}} ang {{item}} bilang kapalit. I-tap para tanggapin o tanggihan.',

@@ -19,10 +19,16 @@ export const SocketEvent = {
   RIDER_JOB_CANCELLED: 'rider.job_cancelled',
   MERCHANT_NEW_ORDER: 'merchant.new_order',
   MERCHANT_ORDER_CANCELLED: 'merchant.order_cancelled',
+  /** A scheduled order is due: start preparing (merchant room). */
+  MERCHANT_ORDER_RELEASED: 'merchant.order_released',
   STORE_UPDATED: 'store.updated',
   PRODUCT_UPDATED: 'product.updated',
   SURGE_UPDATED: 'surge.updated',
   ADMIN_METRICS: 'admin.metrics',
+  /** An order needs ops attention (e.g. no rider for too long). */
+  ADMIN_ORDER_ALERT: 'admin.order_alert',
+  /** A recurring order ran: placed or skipped (customer's user room). */
+  SUBSCRIPTION_RUN: 'subscription.run',
   NOTIFICATION_CREATED: 'notification.created',
 } as const;
 export type SocketEvent = (typeof SocketEvent)[keyof typeof SocketEvent];
@@ -83,6 +89,9 @@ export const socketEventSchemas = {
   [SocketEvent.MERCHANT_ORDER_CANCELLED]: socketEnvelope(
     z.object({ orderId: idSchema, reason: z.string().nullable() }),
   ),
+  [SocketEvent.MERCHANT_ORDER_RELEASED]: socketEnvelope(
+    z.object({ orderId: idSchema, code: z.string(), scheduledFor: timestampSchema }),
+  ),
   [SocketEvent.STORE_UPDATED]: socketEnvelope(
     z.object({ isOpen: z.boolean(), pausedUntil: timestampSchema.nullable() }),
   ),
@@ -100,6 +109,23 @@ export const socketEventSchemas = {
       onlineRiders: z.number().int().nonnegative(),
       openMerchants: z.number().int().nonnegative(),
       ordersLastHour: z.number().int().nonnegative(),
+    }),
+  ),
+  [SocketEvent.ADMIN_ORDER_ALERT]: socketEnvelope(
+    z.object({
+      orderId: idSchema,
+      code: z.string(),
+      status: orderStatusSchema,
+      kind: z.enum(['no_rider']),
+      minutes: z.number().int().nonnegative(),
+    }),
+  ),
+  [SocketEvent.SUBSCRIPTION_RUN]: socketEnvelope(
+    z.object({
+      subscriptionOrderId: idSchema,
+      orderId: idSchema.nullable(),
+      skippedReason: z.string().nullable(),
+      nextRunAt: timestampSchema,
     }),
   ),
   [SocketEvent.NOTIFICATION_CREATED]: socketEnvelope(notificationSchema),

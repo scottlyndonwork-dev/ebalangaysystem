@@ -10,6 +10,9 @@ import {
   RECEIPTS_JOB,
   type ReceiptsJob,
 } from '../modules/notifications/service.js';
+import { releaseScheduledOrders } from '../modules/orders/release.js';
+import { sweepStaleOrders } from '../modules/orders/sweeper.js';
+import { runSubscriptions } from '../modules/subscriptions/run.js';
 import { flushBreadcrumbs } from '../modules/tracking/breadcrumbs.js';
 import type { RedisClient } from '../redis.js';
 import type { SocketEmitter } from './emitter.js';
@@ -19,6 +22,20 @@ import { attachDeadLetter, QueueName, type Queues } from './queues.js';
 export const OUTBOX_SCHEDULER_ID = 'outbox-relay-tick';
 export const BREADCRUMB_SCHEDULER_ID = 'rider-breadcrumbs-flush';
 export const BREADCRUMB_FLUSH_MS = 60_000;
+
+/** Jobs on the `scheduled-jobs` queue; the job name picks the handler. */
+export const ScheduledJob = {
+  RELEASE_SCHEDULED_ORDERS: 'release-scheduled-orders',
+  SWEEP_STALE_ORDERS: 'sweep-stale-orders',
+  RUN_SUBSCRIPTIONS: 'run-subscriptions',
+} as const;
+export type ScheduledJob = (typeof ScheduledJob)[keyof typeof ScheduledJob];
+
+export const SCHEDULED_EVERY_MS: Record<ScheduledJob, number> = {
+  [ScheduledJob.RELEASE_SCHEDULED_ORDERS]: 60_000,
+  [ScheduledJob.SWEEP_STALE_ORDERS]: 60_000,
+  [ScheduledJob.RUN_SUBSCRIPTIONS]: 5 * 60_000,
+};
 
 export interface WorkerDeps {
   db: Db;
@@ -33,6 +50,8 @@ export interface WorkerDeps {
   log: Logger;
   outboxPollMs: number;
   breadcrumbFlushMs?: number;
+  /** Override tick intervals (tests). */
+  scheduledEveryMs?: Partial<Record<ScheduledJob, number>>;
   /** Must match the queues' prefix (tests isolate keys with one). */
   prefix?: string;
 }
@@ -92,13 +111,37 @@ export async function startWorkers(deps: WorkerDeps): Promise<WorkerRuntime> {
     { ...base, concurrency: 10 },
   );
 
-  const workers = [outbox, breadcrumbs, notifications];
+  const scheduledJobs = new Worker(
+    QueueName.SCHEDULED,
+    async (job) => {
+      switch (job.name as ScheduledJob) {
+        case ScheduledJob.RELEASE_SCHEDULED_ORDERS:
+          return releaseScheduledOrders(db);
+        case ScheduledJob.SWEEP_STALE_ORDERS:
+          return sweepStaleOrders({ db, redis: deps.redis, log });
+        case ScheduledJob.RUN_SUBSCRIPTIONS:
+          return runSubscriptions({ db, log });
+        default:
+          throw new UnrecoverableError(`unknown scheduled job ${job.name}`);
+      }
+    },
+    // One at a time: a long run of one job must not overlap its own next tick.
+    { ...base, concurrency: 1 },
+  );
+
+  const workers = [outbox, breadcrumbs, notifications, scheduledJobs];
   for (const w of workers)
     w.on('error', (err) => log.error({ err, queue: w.name }, 'worker error'));
   // Ticks of a schedule aren't dead-lettered: the next tick is the retry.
-  const scheduled: string[] = [QueueName.OUTBOX, QueueName.BREADCRUMBS];
-  for (const w of workers.filter((x) => !scheduled.includes(x.name))) {
-    attachDeadLetter(w, queues.deadLetter, log);
+  const ticks: string[] = [QueueName.OUTBOX, QueueName.BREADCRUMBS];
+  for (const w of workers.filter((x) => !ticks.includes(x.name))) {
+    attachDeadLetter(
+      w,
+      queues.deadLetter,
+      log,
+      // scheduled-jobs: only jobs that opted into retries (single-shot ticks just run again).
+      w.name === QueueName.SCHEDULED ? (job) => (job.opts.attempts ?? 1) > 1 : undefined,
+    );
   }
 
   // Idempotent: replicas and restarts update the same scheduler instead of adding more.
@@ -112,6 +155,14 @@ export async function startWorkers(deps: WorkerDeps): Promise<WorkerRuntime> {
     { every: deps.breadcrumbFlushMs ?? BREADCRUMB_FLUSH_MS },
     { name: 'flush' },
   );
+
+  for (const [name, every] of Object.entries(SCHEDULED_EVERY_MS)) {
+    await queues.scheduled.upsertJobScheduler(
+      name,
+      { every: deps.scheduledEveryMs?.[name as ScheduledJob] ?? every },
+      { name },
+    );
+  }
 
   return {
     workers,

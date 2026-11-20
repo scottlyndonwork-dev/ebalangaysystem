@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { Db, Tx } from '../../db.js';
+import { loadSettings } from '../../lib/settings.js';
 
 const bps = z.number().int().min(0).max(10_000);
 const centavos = z.number().int().nonnegative();
@@ -57,20 +58,6 @@ export const DEFAULT_PRICING_SETTINGS: PricingSettings = {
   cancellationProtectionBps: 5_000,
 };
 
-const toKey = (field: string) => field.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`);
-const FIELDS = Object.keys(DEFAULT_PRICING_SETTINGS) as (keyof PricingSettings)[];
-
 export async function loadPricingSettings(db: Db | Tx): Promise<PricingSettings> {
-  const rows = await db.platformSetting.findMany({
-    where: { key: { in: FIELDS.map(toKey) } },
-    select: { key: true, value: true },
-  });
-  const byKey = new Map(rows.map((r) => [r.key, r.value]));
-  const out = { ...DEFAULT_PRICING_SETTINGS };
-  const shape = pricingSettingsSchema.shape;
-  for (const f of FIELDS) {
-    const parsed = shape[f].safeParse(byKey.get(toKey(f)));
-    if (parsed.success) out[f] = parsed.data;
-  }
-  return out;
+  return loadSettings(db, pricingSettingsSchema, DEFAULT_PRICING_SETTINGS);
 }

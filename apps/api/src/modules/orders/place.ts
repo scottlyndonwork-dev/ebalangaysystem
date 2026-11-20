@@ -3,12 +3,17 @@
  * voucher use and points in one transaction. Idempotent per (customer, Idempotency-Key).
  */
 import { createHash } from 'node:crypto';
-import type { createOrderInputSchema, PricingIssue } from '@ebalangay/shared';
+import type { createOrderInputSchema, OrderType, PricingIssue } from '@ebalangay/shared';
 import type { z } from 'zod';
 import type { Db, Tx } from '../../db.js';
 import { AppError } from '../../lib/errors.js';
 import { changeStock, syncKeyProductAutoPause } from '../catalog/service.js';
-import { addressSnapshot, loadAddress, loadMerchantForCart } from '../carts/quote.js';
+import {
+  addressSnapshot,
+  type CartQuote,
+  loadAddress,
+  loadMerchantForCart,
+} from '../carts/quote.js';
 import { loadOwnCart, quoteOwnCart } from '../carts/service.js';
 import { loadPrepSamples } from '../pricing/context.js';
 import { suggestPrepMinutes } from '../pricing/eta.js';
@@ -182,33 +187,85 @@ async function createOrder(
   if (type === 'wholesale' && !q.quote.isWholesale) {
     throw new AppError('VALIDATION_FAILED', 'This cart does not qualify for wholesale prices');
   }
-  const address = await loadAddress(tx, userId, input.addressId);
+  const order = await placeFromLines(tx, {
+    userId,
+    merchant,
+    quote: q,
+    addressId: input.addressId,
+    type,
+    paymentMethod: input.paymentMethod,
+    scheduledFor,
+    notes: input.notes,
+    gift: input.gift,
+    groupCartId: cart.groupCartId,
+    idempotencyKey,
+    idempotencyHash: hash,
+    actor: 'customer',
+    now,
+  });
+  if (cart.groupCartId) {
+    await tx.groupCart.update({ where: { id: cart.groupCartId }, data: { status: 'ordered' } });
+  }
+  await tx.cart.delete({ where: { id: cart.id } });
+
+  return order;
+}
+
+export interface PlaceFromLinesArgs {
+  userId: string;
+  merchant: Awaited<ReturnType<typeof loadMerchantForCart>>;
+  /** A checkout-ready quote (canCheckout) of the lines being ordered. */
+  quote: CartQuote;
+  addressId: string;
+  type: OrderType;
+  paymentMethod: PlaceOrderInput['paymentMethod'];
+  scheduledFor: Date | null;
+  notes?: PlaceOrderInput['notes'];
+  gift?: PlaceOrderInput['gift'];
+  groupCartId?: string | null;
+  subscriptionOrderId?: string | null;
+  idempotencyKey?: string | null;
+  idempotencyHash?: string | null;
+  /** `system` for orders the workers place (subscriptions). */
+  actor: 'customer' | 'system';
+  now: Date;
+}
+
+/**
+ * Creates the order from a priced quote and reserves stock, voucher use and points. Shared by
+ * cart checkout and subscription runs; callers validate the schedule and payment method first.
+ */
+export async function placeFromLines(tx: Tx, a: PlaceFromLinesArgs): Promise<OrderRow> {
+  const { userId, merchant, quote: q, scheduledFor, now } = a;
+  const actorUserId = a.actor === 'customer' ? userId : null;
+  const address = await loadAddress(tx, userId, a.addressId);
   if (!address) throw new AppError('VALIDATION_FAILED', 'Add a delivery address');
 
   const p = q.quote;
   const priced = new Map(p.lines.map((l) => [l.key, l]));
-  const status = input.paymentMethod === 'cod' ? 'placed' : 'pending_payment';
+  const status = a.paymentMethod === 'cod' ? 'placed' : 'pending_payment';
   const etaAt =
     scheduledFor ?? (q.etaMinutes ? new Date(now.getTime() + q.etaMinutes * 60_000) : null);
 
   const created = await tx.order.create({
     data: {
       code: orderCode(),
-      type,
+      type: a.type,
       status,
       merchantId: merchant.id,
       customerId: userId,
-      groupCartId: cart.groupCartId,
+      groupCartId: a.groupCartId ?? null,
+      subscriptionOrderId: a.subscriptionOrderId ?? null,
       addressSnapshot: addressSnapshot(address),
       dropoffLat: address.lat,
       dropoffLng: address.lng,
       riderNotes: address.riderNotes,
-      recipientName: input.gift?.recipientName ?? null,
-      recipientPhone: input.gift?.recipientPhone ?? null,
-      giftMessage: input.gift?.message ?? null,
-      giftHidePrices: input.gift?.hidePrices ?? false,
+      recipientName: a.gift?.recipientName ?? null,
+      recipientPhone: a.gift?.recipientPhone ?? null,
+      giftMessage: a.gift?.message ?? null,
+      giftHidePrices: a.gift?.hidePrices ?? false,
       scheduledFor,
-      notes: input.notes,
+      notes: a.notes,
       subtotalCentavos: BigInt(p.subtotalCentavos),
       deliveryFeeCentavos: BigInt(p.deliveryFeeCentavos),
       serviceFeeCentavos: BigInt(p.serviceFeeCentavos),
@@ -226,9 +283,9 @@ async function createOrder(
       riderEarningCentavos: BigInt(p.riderEarningCentavos),
       surgeBps: p.surgeBps,
       voucherId: p.voucher?.id ?? null,
-      paymentMethod: input.paymentMethod,
-      idempotencyKey,
-      idempotencyHash: hash,
+      paymentMethod: a.paymentMethod,
+      idempotencyKey: a.idempotencyKey ?? null,
+      idempotencyHash: a.idempotencyHash ?? null,
       etaAt,
       placedAt: status === 'placed' ? now : null,
       items: {
@@ -255,8 +312,8 @@ async function createOrder(
         create: {
           fromStatus: null,
           toStatus: status,
-          actor: 'customer',
-          actorUserId: userId,
+          actor: a.actor,
+          actorUserId,
           createdAt: now,
         },
       },
@@ -288,7 +345,7 @@ async function createOrder(
       quantity: -w.qty,
       reason: STOCK_REASON_ORDER,
       orderId: created.id,
-      actorUserId: userId,
+      actorUserId,
     });
   }
   if (want.size) await syncKeyProductAutoPause(tx, merchant.id);
@@ -338,13 +395,8 @@ async function createOrder(
     });
   }
 
-  if (cart.groupCartId) {
-    await tx.groupCart.update({ where: { id: cart.groupCartId }, data: { status: 'ordered' } });
-  }
-  await tx.cart.delete({ where: { id: cart.id } });
-
   let order = await loadOrder(tx, { id: created.id });
-  await announceStatus(tx, order, null, 'customer', null);
+  await announceStatus(tx, order, null, a.actor, null);
 
   // Auto-accept applies to ASAP orders; scheduled ones wait for the merchant.
   if (status === 'placed' && merchant.autoAccept && !scheduledFor) {
